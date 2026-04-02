@@ -12,6 +12,8 @@ public enum MessageType
     Join,           // player sends name + car choice when connecting
     Move,           // player clicked the "Move" button to advance their car
     Ready,          // player clicked "I'm Ready!" – signals they want to start
+    Ping,           // player measuring round-trip latency (includes Timestamp)
+    Resign,         // player gives up the current race mid-game
 
     // Server → Client(s)
     PlayerJoined,   // broadcast: a new player connected to the lobby
@@ -21,6 +23,7 @@ public enum MessageType
     GameOver,       // broadcast: winner announced, race is over
     WaitingRoom,    // unicast:  sent to a newly joined player with lobby snapshot
     Countdown,      // broadcast: countdown tick before race starts (Message = "3","2","1","Go!")
+    Pong,           // unicast:  server echo of a Ping (same Timestamp echoed back)
     Error           // unicast:  error message from the server
 }
 
@@ -55,6 +58,13 @@ public class GameMessage
     /// <summary>Human-readable error or info text.</summary>
     [JsonPropertyName("message")]
     public string? Message { get; set; }
+
+    /// <summary>
+    /// UTC ticks captured at send time.  Sent in a Ping message and echoed
+    /// back unchanged in the Pong reply so the client can measure round-trip time.
+    /// </summary>
+    [JsonPropertyName("timestamp")]
+    public long? Timestamp { get; set; }
 
     // ── Serialisation helpers ───────────────────────────────────────────────
 

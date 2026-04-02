@@ -196,6 +196,20 @@ public class GameServer
             case MessageType.Ready:
                 await HandleReadyAsync(sender);
                 break;
+
+            case MessageType.Ping:
+                // Echo the Ping straight back as a Pong with the same Timestamp.
+                // The client uses the round-trip time to calculate latency.
+                await sender.SendAsync(new GameMessage
+                {
+                    Type      = MessageType.Pong,
+                    Timestamp = msg.Timestamp   // echo the client's timestamp unchanged
+                });
+                break;
+
+            case MessageType.Resign:
+                await HandleResignAsync(sender);
+                break;
         }
     }
 
@@ -264,6 +278,61 @@ public class GameServer
     }
 
     // ── Ready logic ───────────────────────────────────────────────────────────
+
+    // ── Resign logic ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Handles a player voluntarily resigning from the current race.
+    /// Broadcasts a PlayerLeft message and ends the game if only one player remains.
+    /// </summary>
+    private async Task HandleResignAsync(PlayerConnection sender)
+    {
+        bool wasInGame;
+        string? autoWinner = null;
+
+        lock (_lock)
+        {
+            // Can only resign during an active race
+            if (_phase != GamePhase.InProgress) return;
+
+            wasInGame = _connections.Remove(sender);
+            _readyPlayers.Remove(sender.Name);
+
+            // If only one player remains after the resign, they win by default
+            if (_connections.Count == 1)
+            {
+                autoWinner = _connections[0].Name;
+                _phase     = GamePhase.Waiting;
+                _readyPlayers.Clear();
+                foreach (var c in _connections) c.Position = 0;
+            }
+        }
+
+        if (!wasInGame) return;
+
+        sender.Close();   // disconnect the resigning player
+
+        _log($"  {sender.Name} resigned.");
+
+        // Tell everyone the resigner left
+        await BroadcastAsync(new GameMessage
+        {
+            Type       = MessageType.PlayerLeft,
+            PlayerName = sender.Name
+        });
+
+        // If someone wins by default, announce it and reset the lobby
+        if (autoWinner is not null)
+        {
+            await BroadcastAsync(new GameMessage
+            {
+                Type       = MessageType.GameOver,
+                WinnerName = autoWinner,
+                Message    = $"{sender.Name} resigned – {autoWinner} wins!"
+            });
+            await BroadcastAsync(BuildWaitingRoom());
+        }
+    }
 
     /// <summary>
     /// Marks a player as ready.  When ALL connected players are ready (and >= 2
