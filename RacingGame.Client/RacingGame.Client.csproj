@@ -15,4 +15,11 @@
     <RootNamespace>RacingGame.Client</RootNamespace>
   </PropertyGroup>
 
+  <!-- Copy car images to the output folder so they can be loaded at runtime -->
+  <ItemGroup>
+    <Content Include="images\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

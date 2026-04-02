@@ -9,17 +9,19 @@ namespace RacingGame.Shared;
 public enum MessageType
 {
     // Client → Server
-    Join,           // player sends name + car choice
-    Move,           // player clicked "move"
+    Join,           // player sends name + car choice when connecting
+    Move,           // player clicked the "Move" button to advance their car
+    Ready,          // player clicked "I'm Ready!" – signals they want to start
 
     // Server → Client(s)
-    PlayerJoined,   // broadcast: a new player connected
+    PlayerJoined,   // broadcast: a new player connected to the lobby
     PlayerLeft,     // broadcast: a player disconnected
-    GameStart,      // broadcast: race begins
-    PositionUpdate, // broadcast: all positions
-    GameOver,       // broadcast: winner announced
-    WaitingRoom,    // unicast: current waiting-room snapshot
-    Error           // unicast: error message
+    GameStart,      // broadcast: race begins – cars can now move
+    PositionUpdate, // broadcast: updated positions for all cars
+    GameOver,       // broadcast: winner announced, race is over
+    WaitingRoom,    // unicast:  sent to a newly joined player with lobby snapshot
+    Countdown,      // broadcast: countdown tick before race starts (Message = "3","2","1","Go!")
+    Error           // unicast:  error message from the server
 }
 
 /// <summary>

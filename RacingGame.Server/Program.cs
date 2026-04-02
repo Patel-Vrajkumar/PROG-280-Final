@@ -1,20 +1,8 @@
 using RacingGame.Server;
 
-Console.Title = "RacingGame – Server";
-Console.WriteLine("===========================================");
-Console.WriteLine("  TCP/IP Multiplayer Racing Game – Server ");
-Console.WriteLine("===========================================");
+// Enable visual styles so buttons and controls look polished
+Application.EnableVisualStyles();
+Application.SetCompatibleTextRenderingDefault(false);
 
-int port = 9000;
-if (args.Length > 0 && int.TryParse(args[0], out int p))
-    port = p;
-
-var server = new GameServer(port);
-
-Console.CancelKeyPress += (_, e) =>
-{
-    e.Cancel = true;
-    server.Stop();
-};
-
-await server.StartAsync();
+// Show the server configuration window (blocks until the window is closed)
+Application.Run(new ServerForm());
