@@ -1,0 +1,13 @@
+# .NET build outputs
+bin/
+obj/
+*.user
+
+# VS / Rider
+.vs/
+.idea/
+*.suo
+*.user
+
+# macOS
+.DS_Store
