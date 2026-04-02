@@ -29,7 +29,7 @@ public sealed class ConnectForm : Form
     public ConnectForm()
     {
         Text            = "Racing Game – Connect";
-        Size            = new Size(520, 480);
+        Size            = new Size(520, 560);
         StartPosition   = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox     = false;
@@ -133,9 +133,126 @@ public sealed class ConnectForm : Form
         _lblStatus.ForeColor = Color.Tomato;
         _lblStatus.TextAlign = ContentAlignment.MiddleCenter;
         Controls.Add(_lblStatus);
+        y += 38;
+
+        // ── How to Play button ────────────────────────────────────────────────
+        var btnHelp = new Button
+        {
+            Text      = "How to Play",
+            Location  = new Point(80, y),
+            Size      = new Size(140, 34),
+            Font      = new Font("Segoe UI", 10),
+            BackColor = Color.FromArgb(40, 60, 80),
+            ForeColor = Color.LightCyan,
+            FlatStyle = FlatStyle.Flat,
+            Cursor    = Cursors.Hand
+        };
+        btnHelp.FlatAppearance.BorderSize = 1;
+        btnHelp.FlatAppearance.BorderColor = Color.SteelBlue;
+        // Open the HowToPlayForm dialog when clicked
+        btnHelp.Click += (_, _) => new HowToPlayForm().ShowDialog(this);
+        Controls.Add(btnHelp);
+
+        // ── High Scores button ────────────────────────────────────────────────
+        var btnScores = new Button
+        {
+            Text      = "High Scores",
+            Location  = new Point(290, y),
+            Size      = new Size(140, 34),
+            Font      = new Font("Segoe UI", 10),
+            BackColor = Color.FromArgb(60, 50, 20),
+            ForeColor = Color.Gold,
+            FlatStyle = FlatStyle.Flat,
+            Cursor    = Cursors.Hand
+        };
+        btnScores.FlatAppearance.BorderSize  = 1;
+        btnScores.FlatAppearance.BorderColor = Color.Goldenrod;
+        // Show the high-scores leaderboard dialog when clicked
+        btnScores.Click += (_, _) => ShowHighScores();
+        Controls.Add(btnScores);
 
         // Highlight car 1 as default selection
         SelectCar(1);
+    }
+
+    // ── High scores dialog ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Builds and shows a simple modal dialog that lists the top 10 win counts.
+    /// </summary>
+    private void ShowHighScores()
+    {
+        var scores = HighScoreManager.GetTopScores(10);
+
+        // Build the form dynamically
+        var f = new Form
+        {
+            Text            = "High Scores",
+            Size            = new Size(360, 420),
+            StartPosition   = FormStartPosition.CenterParent,
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            MaximizeBox     = false,
+            BackColor       = Color.FromArgb(20, 20, 30),
+            ForeColor       = Color.White
+        };
+
+        f.Controls.Add(new Label
+        {
+            Text      = "High Scores",
+            Font      = new Font("Segoe UI", 16, FontStyle.Bold),
+            ForeColor = Color.Gold,
+            AutoSize  = true,
+            Location  = new Point(20, 15)
+        });
+
+        var lv = new ListView
+        {
+            Location     = new Point(15, 55),
+            Size         = new Size(315, 280),
+            View         = View.Details,
+            FullRowSelect = true,
+            BackColor    = Color.FromArgb(30, 30, 45),
+            ForeColor    = Color.White,
+            Font         = new Font("Segoe UI", 11),
+            BorderStyle  = BorderStyle.FixedSingle,
+            GridLines    = true
+        };
+        lv.Columns.Add("#",      40);
+        lv.Columns.Add("Player", 180);
+        lv.Columns.Add("Wins",   80);
+
+        // Populate rows; show a placeholder if no wins have been recorded yet
+        if (scores.Count == 0)
+        {
+            lv.Items.Add(new ListViewItem(["–", "No scores yet", "–"]));
+        }
+        else
+        {
+            for (int i = 0; i < scores.Count; i++)
+            {
+                var (name, wins) = scores[i];
+                lv.Items.Add(new ListViewItem([$"{i + 1}", name, wins.ToString()]));
+            }
+        }
+        f.Controls.Add(lv);
+
+        var btnClose = new Button
+        {
+            Text      = "Close",
+            Location  = new Point(115, 350),
+            Size      = new Size(120, 36),
+            Font      = new Font("Segoe UI", 11, FontStyle.Bold),
+            BackColor = Color.DodgerBlue,
+            ForeColor = Color.White,
+            FlatStyle = FlatStyle.Flat,
+            DialogResult = DialogResult.OK,
+            Cursor    = Cursors.Hand
+        };
+        btnClose.FlatAppearance.BorderSize = 0;
+        f.Controls.Add(btnClose);
+        f.AcceptButton = btnClose;
+
+        f.ShowDialog(this);
     }
 
     private static void StyleCarButton(Button btn, string text, Color accent, int x)
@@ -192,7 +309,7 @@ public sealed class ConnectForm : Form
             ServerPort = port;
             CarChoice  = _selectedCar;
 
-            var gameForm = new GameForm(net, name, _selectedCar);
+            var gameForm = new GameForm(net, name, _selectedCar, host, port);
             gameForm.FormClosed += (_, _) => Show();
             Hide();
             gameForm.Show();
