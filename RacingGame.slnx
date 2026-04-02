@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="RacingGame.Shared/RacingGame.Shared.csproj" />
+  <Project Path="RacingGame.Server/RacingGame.Server.csproj" />
+  <Project Path="RacingGame.Client/RacingGame.Client.csproj" />
+</Solution>
