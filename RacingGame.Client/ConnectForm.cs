@@ -6,19 +6,8 @@ namespace RacingGame.Client;
 /// <summary>
 /// First screen: player enters their name, picks a car, and types the server IP.
 /// </summary>
-public sealed class ConnectForm : Form
+public sealed partial class ConnectForm : Form
 {
-    // ── Controls ─────────────────────────────────────────────────────────────
-    private readonly TextBox _txtName   = new();
-    private readonly TextBox _txtHost   = new();
-    private readonly NumericUpDown _nudPort = new();
-    private readonly Panel _carPanel   = new();
-    private readonly Button _btnCar1   = new();
-    private readonly Button _btnCar2   = new();
-    private readonly Button _btnCar3   = new();
-    private readonly Button _btnJoin   = new();
-    private readonly Label  _lblStatus = new();
-
     private int _selectedCar = 1;
 
     // ── Public result properties ──────────────────────────────────────────────
@@ -29,18 +18,10 @@ public sealed class ConnectForm : Form
 
     public ConnectForm()
     {
-        Text            = "Neon Racing 2026 – Connect";
-        Size            = new Size(520, 580);
-        StartPosition   = FormStartPosition.CenterScreen;
-        FormBorderStyle = FormBorderStyle.FixedDialog;
-        MaximizeBox     = false;
-        BackColor       = Color.FromArgb(8, 8, 18);
-        ForeColor       = Color.White;
+        InitializeComponent();
 
-        // Neon border paint
-        Paint += OnFormPaint;
-
-        BuildUI();
+        // Highlight car 1 as the default selection
+        SelectCar(1);
     }
 
     /// <summary>Draws a pulsating cyan neon border around the connect form.</summary>
@@ -52,155 +33,6 @@ public sealed class ConnectForm : Form
             g.DrawRectangle(glowPen, 5, 5, Width - 10, Height - 10);
         using (var borderPen = new Pen(Color.FromArgb(160, Color.Cyan), 1.5f))
             g.DrawRectangle(borderPen, 2, 2, Width - 5, Height - 5);
-    }
-
-    private void BuildUI()
-    {
-        int y = 30;
-
-        // Title
-        var title = new Label
-        {
-            Text      = "🏎  NEON RACING 2026",
-            Font      = new Font("Segoe UI", 22, FontStyle.Bold),
-            ForeColor = Color.Cyan,
-            AutoSize  = true,
-            Location  = new Point(70, y)
-        };
-        Controls.Add(title);
-        y += 48;
-
-        // Subtitle tagline
-        var subtitle = new Label
-        {
-            Text      = "The Future of Racing Is Here",
-            Font      = new Font("Segoe UI", 10, FontStyle.Italic),
-            ForeColor = Color.FromArgb(100, 200, 230),
-            AutoSize  = true,
-            Location  = new Point(135, y)
-        };
-        Controls.Add(subtitle);
-        y += 34;
-
-        // Name
-        Controls.Add(MakeLabel("Your Name:", y));
-        _txtName.Location    = new Point(170, y - 2);
-        _txtName.Size        = new Size(220, 28);
-        _txtName.Font        = new Font("Segoe UI", 11);
-        _txtName.BackColor   = Color.FromArgb(18, 28, 40);
-        _txtName.ForeColor   = Color.Cyan;
-        _txtName.BorderStyle = BorderStyle.FixedSingle;
-        Controls.Add(_txtName);
-        y += 45;
-
-        // Server IP
-        Controls.Add(MakeLabel("Server IP:", y));
-        _txtHost.Location    = new Point(170, y - 2);
-        _txtHost.Size        = new Size(160, 28);
-        _txtHost.Text        = "127.0.0.1";
-        _txtHost.Font        = new Font("Segoe UI", 11);
-        _txtHost.BackColor   = Color.FromArgb(18, 28, 40);
-        _txtHost.ForeColor   = Color.Cyan;
-        _txtHost.BorderStyle = BorderStyle.FixedSingle;
-        Controls.Add(_txtHost);
-        y += 45;
-
-        // Port
-        Controls.Add(MakeLabel("Port:", y));
-        _nudPort.Location  = new Point(170, y - 2);
-        _nudPort.Size      = new Size(90, 28);
-        _nudPort.Minimum   = 1;
-        _nudPort.Maximum   = 65535;
-        _nudPort.Value     = 9000;
-        _nudPort.Font      = new Font("Segoe UI", 11);
-        _nudPort.BackColor = Color.FromArgb(18, 28, 40);
-        _nudPort.ForeColor = Color.Cyan;
-        Controls.Add(_nudPort);
-        y += 50;
-
-        // Car selection label
-        Controls.Add(MakeLabel("Choose Car:", y));
-        y += 30;
-
-        // Car buttons panel
-        _carPanel.Location  = new Point(60, y);
-        _carPanel.Size      = new Size(390, 100);
-        _carPanel.BackColor = Color.Transparent;
-
-        StyleCarButton(_btnCar1, "🚗  Car 1", Color.DeepSkyBlue,   0);
-        StyleCarButton(_btnCar2, "🏎  Car 2", Color.OrangeRed,     130);
-        StyleCarButton(_btnCar3, "🚙  Car 3", Color.LimeGreen,     260);
-
-        _btnCar1.Click += (_, _) => SelectCar(1);
-        _btnCar2.Click += (_, _) => SelectCar(2);
-        _btnCar3.Click += (_, _) => SelectCar(3);
-
-        _carPanel.Controls.AddRange([_btnCar1, _btnCar2, _btnCar3]);
-        Controls.Add(_carPanel);
-        y += 115;
-
-        // Join button – neon cyan style
-        _btnJoin.Text      = "⚡  Join Game";
-        _btnJoin.Location  = new Point(170, y);
-        _btnJoin.Size      = new Size(165, 44);
-        _btnJoin.Font      = new Font("Segoe UI", 13, FontStyle.Bold);
-        _btnJoin.BackColor = Color.FromArgb(0, 55, 75);
-        _btnJoin.ForeColor = Color.Cyan;
-        _btnJoin.FlatStyle = FlatStyle.Flat;
-        _btnJoin.FlatAppearance.BorderColor = Color.Cyan;
-        _btnJoin.FlatAppearance.BorderSize  = 2;
-        _btnJoin.Cursor    = Cursors.Hand;
-        _btnJoin.Click    += OnJoinClicked;
-        Controls.Add(_btnJoin);
-        y += 54;
-
-        // Status
-        _lblStatus.Location  = new Point(30, y);
-        _lblStatus.Size      = new Size(450, 30);
-        _lblStatus.Font      = new Font("Segoe UI", 10);
-        _lblStatus.ForeColor = Color.Tomato;
-        _lblStatus.TextAlign = ContentAlignment.MiddleCenter;
-        Controls.Add(_lblStatus);
-        y += 38;
-
-        // ── How to Play button ────────────────────────────────────────────────
-        var btnHelp = new Button
-        {
-            Text      = "How to Play",
-            Location  = new Point(80, y),
-            Size      = new Size(140, 34),
-            Font      = new Font("Segoe UI", 10),
-            BackColor = Color.FromArgb(40, 60, 80),
-            ForeColor = Color.LightCyan,
-            FlatStyle = FlatStyle.Flat,
-            Cursor    = Cursors.Hand
-        };
-        btnHelp.FlatAppearance.BorderSize = 1;
-        btnHelp.FlatAppearance.BorderColor = Color.SteelBlue;
-        // Open the HowToPlayForm dialog when clicked
-        btnHelp.Click += (_, _) => new HowToPlayForm().ShowDialog(this);
-        Controls.Add(btnHelp);
-
-        // ── High Scores button ────────────────────────────────────────────────
-        var btnScores = new Button
-        {
-            Text      = "High Scores",
-            Location  = new Point(290, y),
-            Size      = new Size(140, 34),
-            Font      = new Font("Segoe UI", 10),
-            BackColor = Color.FromArgb(60, 50, 20),
-            ForeColor = Color.Gold,
-            FlatStyle = FlatStyle.Flat,
-            Cursor    = Cursors.Hand
-        };
-        btnScores.FlatAppearance.BorderSize  = 1;
-        btnScores.FlatAppearance.BorderColor = Color.Goldenrod;
-        // Show the high-scores leaderboard dialog when clicked
-        btnScores.Click += (_, _) => ShowHighScores();
-        Controls.Add(btnScores);
-
-        // Highlight car 1 as default selection
-        SelectCar(1);
     }
 
     // ── High scores dialog ────────────────────────────────────────────────────
@@ -283,20 +115,6 @@ public sealed class ConnectForm : Form
         f.ShowDialog(this);
     }
 
-    private static void StyleCarButton(Button btn, string text, Color accent, int x)
-    {
-        btn.Text      = text;
-        btn.Location  = new Point(x, 10);
-        btn.Size      = new Size(115, 70);
-        btn.Font      = new Font("Segoe UI", 10, FontStyle.Bold);
-        btn.BackColor = Color.FromArgb(12, 20, 30);
-        btn.ForeColor = accent;
-        btn.FlatStyle = FlatStyle.Flat;
-        btn.FlatAppearance.BorderColor = accent;
-        btn.FlatAppearance.BorderSize  = 2;
-        btn.Cursor    = Cursors.Hand;
-    }
-
     private void SelectCar(int car)
     {
         _selectedCar = car;
@@ -351,14 +169,4 @@ public sealed class ConnectForm : Form
         }
     }
 
-    // ── Helper ────────────────────────────────────────────────────────────────
-    private Label MakeLabel(string text, int y) => new()
-    {
-        Text      = text,
-        Location  = new Point(30, y),
-        Size      = new Size(140, 28),
-        Font      = new Font("Segoe UI", 11),
-        ForeColor = Color.LightGray,
-        TextAlign = ContentAlignment.MiddleRight
-    };
 }

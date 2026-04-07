@@ -4,71 +4,12 @@ namespace RacingGame.Client;
 /// A simple modal dialog that explains the rules and controls of the game.
 /// Shown when the player clicks "How to Play" on the connect screen.
 /// </summary>
-public sealed class HowToPlayForm : Form
+public sealed partial class HowToPlayForm : Form
 {
     public HowToPlayForm()
     {
-        Text            = "How to Play – Racing Game";
-        Size            = new Size(520, 540);
-        StartPosition   = FormStartPosition.CenterParent;
-        FormBorderStyle = FormBorderStyle.FixedDialog;
-        MaximizeBox     = false;
-        MinimizeBox     = false;
-        BackColor       = Color.FromArgb(20, 20, 30);
-        ForeColor       = Color.White;
-
-        BuildUI();
+        InitializeComponent();
     }
-
-    private void BuildUI()
-    {
-        // ── Title ─────────────────────────────────────────────────────────────
-        var lblTitle = new Label
-        {
-            Text      = "How to Play",
-            Font      = new Font("Segoe UI", 18, FontStyle.Bold),
-            ForeColor = Color.Gold,
-            AutoSize  = true,
-            Location  = new Point(20, 15)
-        };
-        Controls.Add(lblTitle);
-
-        // ── Instructions text ─────────────────────────────────────────────────
-        // Using a read-only RichTextBox so text wraps nicely and can be scrolled
-        var rtb = new RichTextBox
-        {
-            Location    = new Point(15, 55),
-            Size        = new Size(475, 390),
-            BackColor   = Color.FromArgb(30, 30, 45),
-            ForeColor   = Color.White,
-            Font        = new Font("Segoe UI", 11),
-            ReadOnly    = true,
-            BorderStyle = BorderStyle.None,
-            ScrollBars  = RichTextBoxScrollBars.Vertical,
-            Text        = GetInstructions()
-        };
-        Controls.Add(rtb);
-
-        // ── Close button ──────────────────────────────────────────────────────
-        var btnClose = new Button
-        {
-            Text      = "Got it!",
-            Location  = new Point(190, 460),
-            Size      = new Size(130, 40),
-            Font      = new Font("Segoe UI", 12, FontStyle.Bold),
-            BackColor = Color.DodgerBlue,
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Cursor    = Cursors.Hand,
-            DialogResult = DialogResult.OK   // pressing this closes the dialog
-        };
-        btnClose.FlatAppearance.BorderSize = 0;
-        Controls.Add(btnClose);
-
-        AcceptButton = btnClose;   // pressing Enter also closes the dialog
-    }
-
-    // ── Instructions text ──────────────────────────────────────────────────────
 
     private static string GetInstructions() =>
         """
