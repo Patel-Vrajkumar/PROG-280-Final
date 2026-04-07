@@ -1,3 +1,4 @@
+using System.Drawing.Drawing2D;
 using System.Net;
 using System.Net.Sockets;
 
@@ -27,15 +28,26 @@ public sealed class ServerForm : Form
 
     public ServerForm()
     {
-        Text            = "Racing Game – Server";
+        Text            = "Neon Racing 2026 – Server";
         Size            = new Size(640, 640);
         StartPosition   = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox     = false;
-        BackColor       = Color.FromArgb(20, 20, 30);
+        BackColor       = Color.FromArgb(8, 8, 18);
         ForeColor       = Color.White;
 
         BuildUI();
+
+        // Draw a neon border on the server window
+        Paint += (_, e) =>
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            using (var glow = new Pen(Color.FromArgb(30, Color.Cyan), 10f))
+                g.DrawRectangle(glow, 5, 5, Width - 10, Height - 10);
+            using (var line = new Pen(Color.FromArgb(120, Color.Cyan), 1.5f))
+                g.DrawRectangle(line, 2, 2, Width - 5, Height - 5);
+        };
 
         // When the window is closed, stop the server and all bots
         FormClosing += (_, _) => StopEverything();
@@ -50,9 +62,9 @@ public sealed class ServerForm : Form
         // ── Title ─────────────────────────────────────────────────────────────
         Controls.Add(new Label
         {
-            Text      = "Racing Game – Server",
-            Font      = new Font("Segoe UI", 18, FontStyle.Bold),
-            ForeColor = Color.Gold,
+            Text      = "🏎  Neon Racing 2026 – Server",
+            Font      = new Font("Segoe UI", 16, FontStyle.Bold),
+            ForeColor = Color.Cyan,
             AutoSize  = true,
             Location  = new Point(20, y)
         });
@@ -64,8 +76,8 @@ public sealed class ServerForm : Form
         _cboIp.Size          = new Size(200, 28);
         _cboIp.DropDownStyle = ComboBoxStyle.DropDownList;
         _cboIp.Font          = new Font("Segoe UI", 11);
-        _cboIp.BackColor     = Color.FromArgb(40, 40, 55);
-        _cboIp.ForeColor     = Color.White;
+        _cboIp.BackColor     = Color.FromArgb(18, 28, 40);
+        _cboIp.ForeColor     = Color.Cyan;
         // Populate with "Any (0.0.0.0)" and every local IPv4 address
         _cboIp.Items.Add("Any (0.0.0.0)");
         foreach (var ip in Dns.GetHostAddresses(Dns.GetHostName())
@@ -83,8 +95,8 @@ public sealed class ServerForm : Form
         _nudPort.Maximum   = 65535;
         _nudPort.Value     = 9000;          // default port matches the client
         _nudPort.Font      = new Font("Segoe UI", 11);
-        _nudPort.BackColor = Color.FromArgb(40, 40, 55);
-        _nudPort.ForeColor = Color.White;
+        _nudPort.BackColor = Color.FromArgb(18, 28, 40);
+        _nudPort.ForeColor = Color.Cyan;
         Controls.Add(_nudPort);
         y += 45;
 
@@ -96,8 +108,8 @@ public sealed class ServerForm : Form
         _nudBots.Maximum   = 3;             // max 3 bots (server supports 5 total players)
         _nudBots.Value     = 0;             // default: no bots
         _nudBots.Font      = new Font("Segoe UI", 11);
-        _nudBots.BackColor = Color.FromArgb(40, 40, 55);
-        _nudBots.ForeColor = Color.White;
+        _nudBots.BackColor = Color.FromArgb(18, 28, 40);
+        _nudBots.ForeColor = Color.Cyan;
         Controls.Add(_nudBots);
 
         // Small hint label explaining what the bot count does
@@ -112,14 +124,15 @@ public sealed class ServerForm : Form
         y += 50;
 
         // ── Start / Stop button ───────────────────────────────────────────────
-        _btnStart.Text      = "Start Server";
+        _btnStart.Text      = "▶  Start Server";
         _btnStart.Location  = new Point(150, y);
-        _btnStart.Size      = new Size(160, 44);
+        _btnStart.Size      = new Size(170, 44);
         _btnStart.Font      = new Font("Segoe UI", 13, FontStyle.Bold);
-        _btnStart.BackColor = Color.ForestGreen;
-        _btnStart.ForeColor = Color.White;
+        _btnStart.BackColor = Color.FromArgb(0, 70, 20);
+        _btnStart.ForeColor = Color.LimeGreen;
         _btnStart.FlatStyle = FlatStyle.Flat;
-        _btnStart.FlatAppearance.BorderSize = 0;
+        _btnStart.FlatAppearance.BorderColor = Color.LimeGreen;
+        _btnStart.FlatAppearance.BorderSize  = 2;
         _btnStart.Cursor    = Cursors.Hand;
         _btnStart.Click    += OnStartStopClicked;
         Controls.Add(_btnStart);
@@ -132,15 +145,15 @@ public sealed class ServerForm : Form
             Location  = new Point(20, y),
             Size      = new Size(200, 24),
             Font      = new Font("Segoe UI", 10, FontStyle.Bold),
-            ForeColor = Color.LightGray
+            ForeColor = Color.Cyan
         });
         y += 26;
 
         _lstPlayers.Location    = new Point(20, y);
         _lstPlayers.Size        = new Size(195, 310);
         _lstPlayers.Font        = new Font("Segoe UI", 10);
-        _lstPlayers.BackColor   = Color.FromArgb(30, 30, 45);
-        _lstPlayers.ForeColor   = Color.White;
+        _lstPlayers.BackColor   = Color.FromArgb(10, 18, 28);
+        _lstPlayers.ForeColor   = Color.Cyan;
         _lstPlayers.BorderStyle = BorderStyle.FixedSingle;
         Controls.Add(_lstPlayers);
 
@@ -151,14 +164,14 @@ public sealed class ServerForm : Form
             Location  = new Point(230, y - 26),
             Size      = new Size(150, 24),
             Font      = new Font("Segoe UI", 10, FontStyle.Bold),
-            ForeColor = Color.LightGray
+            ForeColor = Color.Cyan
         });
 
         _rtbLog.Location    = new Point(230, y);
         _rtbLog.Size        = new Size(385, 310);
         _rtbLog.Font        = new Font("Consolas", 9);
-        _rtbLog.BackColor   = Color.FromArgb(10, 10, 18);
-        _rtbLog.ForeColor   = Color.LightGreen;
+        _rtbLog.BackColor   = Color.FromArgb(4, 8, 14);
+        _rtbLog.ForeColor   = Color.Cyan;
         _rtbLog.ReadOnly    = true;
         _rtbLog.ScrollBars  = RichTextBoxScrollBars.Vertical;
         _rtbLog.BorderStyle = BorderStyle.FixedSingle;
@@ -204,8 +217,10 @@ public sealed class ServerForm : Form
         _nudPort.Enabled = false;
         _nudBots.Enabled = false;
         _cboIp.Enabled   = false;
-        _btnStart.Text      = "Stop Server";
-        _btnStart.BackColor = Color.Firebrick;
+        _btnStart.Text      = "■  Stop Server";
+        _btnStart.BackColor = Color.FromArgb(70, 0, 0);
+        _btnStart.ForeColor = Color.OrangeRed;
+        _btnStart.FlatAppearance.BorderColor = Color.OrangeRed;
 
         // Wire the server's log output to our RichTextBox
         _server = new GameServer(port, msg => AppendLog(msg));
@@ -254,8 +269,10 @@ public sealed class ServerForm : Form
             _nudPort.Enabled = true;
             _nudBots.Enabled = true;
             _cboIp.Enabled   = true;
-            _btnStart.Text      = "Start Server";
-            _btnStart.BackColor = Color.ForestGreen;
+            _btnStart.Text      = "▶  Start Server";
+            _btnStart.BackColor = Color.FromArgb(0, 70, 20);
+            _btnStart.ForeColor = Color.LimeGreen;
+            _btnStart.FlatAppearance.BorderColor = Color.LimeGreen;
             _lstPlayers.Items.Clear();
         }
 
