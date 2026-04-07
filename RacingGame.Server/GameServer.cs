@@ -24,6 +24,9 @@ public class GameServer
     private readonly Lock _lock = new();                        // thread-safety lock
     private GamePhase _phase = GamePhase.Waiting;               // current game phase
     private bool _running;                                      // true while server is accepting clients
+    private readonly List<BotPlayer> _bots = [];                // auto-spawned AI bots
+    private bool _botsSpawned = false;                          // prevent double-spawning per round
+    private int  _botCounter  = 0;                              // ever-increasing bot name counter
 
     // ── Logger callback ───────────────────────────────────────────────────────
     // Called whenever the server wants to print status text.
@@ -66,11 +69,16 @@ public class GameServer
         _log("Server stopped.");
     }
 
-    /// <summary>Stops the server and closes all connections.</summary>
+    /// <summary>Stops the server, all bots, and closes all connections.</summary>
     public void Stop()
     {
         _running = false;
         _listener.Stop();
+        lock (_bots)
+        {
+            foreach (var b in _bots) b.Stop();
+            _bots.Clear();
+        }
         lock (_lock)
             foreach (var c in _connections)
                 c.Close();
@@ -260,6 +268,7 @@ public class GameServer
             {
                 _readyPlayers.Clear();
                 _phase = GamePhase.Waiting;
+                _botsSpawned = false;
                 foreach (var c in _connections) c.Position = 0;
             }
 
@@ -303,6 +312,7 @@ public class GameServer
             {
                 autoWinner = _connections[0].Name;
                 _phase     = GamePhase.Waiting;
+                _botsSpawned = false;
                 _readyPlayers.Clear();
                 foreach (var c in _connections) c.Position = 0;
             }
@@ -337,10 +347,14 @@ public class GameServer
     /// <summary>
     /// Marks a player as ready.  When ALL connected players are ready (and >= 2
     /// are connected), the server starts the 3-2-1-Go! countdown.
+    /// If there are fewer than <see cref="MaxPlayers"/> players connected when
+    /// the first Ready arrives, AI bots are automatically spawned to fill the room.
     /// </summary>
     private async Task HandleReadyAsync(PlayerConnection sender)
     {
         bool allReady = false;
+        bool spawnBots = false;
+        int botsToSpawn = 0;
 
         lock (_lock)
         {
@@ -350,12 +364,38 @@ public class GameServer
             _readyPlayers.Add(sender.Name);
             _log($"  {sender.Name} is ready ({_readyPlayers.Count}/{_connections.Count})");
 
+            // Auto-fill with bots the first time someone clicks Ready this round
+            if (!_botsSpawned && _connections.Count < MaxPlayers)
+            {
+                _botsSpawned = true;
+                spawnBots    = true;
+                botsToSpawn  = MaxPlayers - _connections.Count;
+            }
+
             // All players must be ready AND there must be at least 2
             if (_connections.Count >= 2 && _readyPlayers.Count == _connections.Count)
             {
                 allReady = true;
                 _phase = GamePhase.Countdown;  // block new ready calls during countdown
             }
+        }
+
+        // Spawn bots outside the lock so we don't deadlock while they connect
+        if (spawnBots && botsToSpawn > 0)
+        {
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(300);   // give the server a moment before bots connect
+                for (int i = 0; i < botsToSpawn; i++)
+                {
+                    int botNum = Interlocked.Increment(ref _botCounter);
+                    var bot = new BotPlayer($"Bot_{botNum}", _port);
+                    lock (_bots) _bots.Add(bot);
+                    _ = Task.Run(() => bot.RunAsync());
+                    _log($"  Auto-spawned Bot_{botNum}");
+                    await Task.Delay(200);   // stagger bot connections slightly
+                }
+            });
         }
 
         if (allReady)
@@ -444,6 +484,7 @@ public class GameServer
                 && _connections.Count < 2)
             {
                 _phase = GamePhase.Waiting;
+                _botsSpawned = false;
                 _readyPlayers.Clear();
                 var remaining = _connections.FirstOrDefault();
                 if (remaining is not null)

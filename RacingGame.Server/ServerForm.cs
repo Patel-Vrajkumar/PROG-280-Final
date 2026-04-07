@@ -7,24 +7,24 @@ namespace RacingGame.Server;
 /// <summary>
 /// A Windows Forms window that lets the server operator:
 ///   • Pick the IP binding and port before starting.
-///   • Configure how many AI bots to add (0-3).
 ///   • Start and stop the server with a single button.
 ///   • Watch the connected-player list and server log update in real time.
+///
+/// AI bots are spawned automatically when a player clicks "I'm Ready!"
+/// to fill any empty slots up to the maximum of 5 players.
 /// </summary>
 public sealed class ServerForm : Form
 {
     // ── Controls ──────────────────────────────────────────────────────────────
     private readonly ComboBox      _cboIp      = new();   // local IP addresses drop-down
     private readonly NumericUpDown _nudPort    = new();   // TCP port input
-    private readonly NumericUpDown _nudBots    = new();   // number of AI bots to add (0-3)
     private readonly Button        _btnStart   = new();   // Start / Stop toggle button
     private readonly ListBox       _lstPlayers = new();   // live list of connected players
     private readonly RichTextBox   _rtbLog     = new();   // scrolling server log
 
     // ── Server state ──────────────────────────────────────────────────────────
-    private GameServer?       _server;              // null when the server is stopped
-    private Task?             _serverTask;           // background task for StartAsync()
-    private readonly List<BotPlayer> _bots = [];    // active bot instances
+    private GameServer? _server;       // null when the server is stopped
+    private Task?       _serverTask;   // background task for StartAsync()
 
     public ServerForm()
     {
@@ -68,7 +68,18 @@ public sealed class ServerForm : Form
             AutoSize  = true,
             Location  = new Point(20, y)
         });
-        y += 55;
+        y += 45;
+
+        // ── Subtitle / info ───────────────────────────────────────────────────
+        Controls.Add(new Label
+        {
+            Text      = "AI bots fill empty slots automatically when a player clicks \"I'm Ready!\"",
+            Font      = new Font("Segoe UI", 9, FontStyle.Italic),
+            ForeColor = Color.FromArgb(100, 200, 230),
+            AutoSize  = true,
+            Location  = new Point(20, y)
+        });
+        y += 35;
 
         // ── IP binding drop-down ───────────────────────────────────────────────
         AddLabel("Bind IP:", y);
@@ -100,28 +111,16 @@ public sealed class ServerForm : Form
         Controls.Add(_nudPort);
         y += 45;
 
-        // ── AI bot count ──────────────────────────────────────────────────────
-        AddLabel("AI Bots:", y);
-        _nudBots.Location  = new Point(150, y - 2);
-        _nudBots.Size      = new Size(80, 28);
-        _nudBots.Minimum   = 0;
-        _nudBots.Maximum   = 3;             // max 3 bots (server supports 5 total players)
-        _nudBots.Value     = 0;             // default: no bots
-        _nudBots.Font      = new Font("Segoe UI", 11);
-        _nudBots.BackColor = Color.FromArgb(18, 28, 40);
-        _nudBots.ForeColor = Color.Cyan;
-        Controls.Add(_nudBots);
-
-        // Small hint label explaining what the bot count does
+        // ── Max players info label ────────────────────────────────────────────
         Controls.Add(new Label
         {
-            Text      = "(0 = human-only; 1-3 = add AI players)",
-            Location  = new Point(238, y + 2),
-            Size      = new Size(280, 22),
+            Text      = "Max Players: 5  (human + bots combined)",
             Font      = new Font("Segoe UI", 9),
-            ForeColor = Color.DarkGray
+            ForeColor = Color.DarkGray,
+            AutoSize  = true,
+            Location  = new Point(150, y)
         });
-        y += 50;
+        y += 30;
 
         // ── Start / Stop button ───────────────────────────────────────────────
         _btnStart.Text      = "▶  Start Server";
@@ -176,6 +175,12 @@ public sealed class ServerForm : Form
         _rtbLog.ScrollBars  = RichTextBoxScrollBars.Vertical;
         _rtbLog.BorderStyle = BorderStyle.FixedSingle;
         Controls.Add(_rtbLog);
+
+        // ── Placeholder log entries so the UI looks active for a presentation ─
+        AppendLog("=== Neon Racing 2026 – Server Console ===");
+        AppendLog("Press \"Start Server\" to begin accepting players.");
+        AppendLog("Up to 5 players (humans + bots) per race.");
+        AppendLog("AI bots auto-join when a player clicks \"I'm Ready!\"");
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
@@ -206,16 +211,15 @@ public sealed class ServerForm : Form
     }
 
     /// <summary>
-    /// Creates and starts the <see cref="GameServer"/> then spawns any configured bots.
+    /// Creates and starts the <see cref="GameServer"/>.
+    /// AI bots are spawned automatically by the server when players click "Ready".
     /// </summary>
     private void StartServer()
     {
-        int port    = (int)_nudPort.Value;
-        int botCount = (int)_nudBots.Value;
+        int port = (int)_nudPort.Value;
 
         // Lock the config controls while the server is running
         _nudPort.Enabled = false;
-        _nudBots.Enabled = false;
         _cboIp.Enabled   = false;
         _btnStart.Text      = "■  Stop Server";
         _btnStart.BackColor = Color.FromArgb(70, 0, 0);
@@ -229,37 +233,12 @@ public sealed class ServerForm : Form
         _serverTask = Task.Run(() => _server.StartAsync());
 
         AppendLog("=== Server started ===");
-
-        // Spawn the requested number of AI bot players after a short delay
-        // so the server has time to start listening before the bots connect.
-        if (botCount > 0)
-        {
-            _ = Task.Run(async () =>
-            {
-                await Task.Delay(400);   // give server time to begin accepting connections
-                for (int i = 1; i <= botCount; i++)
-                {
-                    var bot = new BotPlayer($"Bot_{i}", port);
-                    lock (_bots) _bots.Add(bot);
-                    _ = Task.Run(() => bot.RunAsync());
-                    AppendLog($"  Spawned Bot_{i}");
-                    await Task.Delay(200);   // stagger bot connections slightly
-                }
-            });
-        }
     }
 
-    /// <summary>Stops the server, disconnects all bots, and re-enables config inputs.</summary>
+    /// <summary>Stops the server and re-enables config inputs.</summary>
     private void StopEverything()
     {
-        // Stop all bot players first
-        lock (_bots)
-        {
-            foreach (var bot in _bots) bot.Stop();
-            _bots.Clear();
-        }
-
-        // Stop the server
+        // Stop the server (it also stops all bots it spawned)
         _server?.Stop();
         _server = null;
 
@@ -267,7 +246,6 @@ public sealed class ServerForm : Form
         if (IsHandleCreated && !IsDisposed)
         {
             _nudPort.Enabled = true;
-            _nudBots.Enabled = true;
             _cboIp.Enabled   = true;
             _btnStart.Text      = "▶  Start Server";
             _btnStart.BackColor = Color.FromArgb(0, 70, 20);
