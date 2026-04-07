@@ -1,3 +1,4 @@
+using System.Drawing.Drawing2D;
 using RacingGame.Shared;
 
 namespace RacingGame.Client;
@@ -28,15 +29,29 @@ public sealed class ConnectForm : Form
 
     public ConnectForm()
     {
-        Text            = "Racing Game – Connect";
-        Size            = new Size(520, 560);
+        Text            = "Neon Racing 2026 – Connect";
+        Size            = new Size(520, 580);
         StartPosition   = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox     = false;
-        BackColor       = Color.FromArgb(20, 20, 30);
+        BackColor       = Color.FromArgb(8, 8, 18);
         ForeColor       = Color.White;
 
+        // Neon border paint
+        Paint += OnFormPaint;
+
         BuildUI();
+    }
+
+    /// <summary>Draws a pulsating cyan neon border around the connect form.</summary>
+    private void OnFormPaint(object? sender, PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        using (var glowPen = new Pen(Color.FromArgb(40, Color.Cyan), 10f))
+            g.DrawRectangle(glowPen, 5, 5, Width - 10, Height - 10);
+        using (var borderPen = new Pen(Color.FromArgb(160, Color.Cyan), 1.5f))
+            g.DrawRectangle(borderPen, 2, 2, Width - 5, Height - 5);
     }
 
     private void BuildUI()
@@ -46,22 +61,34 @@ public sealed class ConnectForm : Form
         // Title
         var title = new Label
         {
-            Text      = "🏎  RACING GAME",
+            Text      = "🏎  NEON RACING 2026",
             Font      = new Font("Segoe UI", 22, FontStyle.Bold),
-            ForeColor = Color.Gold,
+            ForeColor = Color.Cyan,
             AutoSize  = true,
-            Location  = new Point(110, y)
+            Location  = new Point(70, y)
         };
         Controls.Add(title);
-        y += 60;
+        y += 48;
+
+        // Subtitle tagline
+        var subtitle = new Label
+        {
+            Text      = "The Future of Racing Is Here",
+            Font      = new Font("Segoe UI", 10, FontStyle.Italic),
+            ForeColor = Color.FromArgb(100, 200, 230),
+            AutoSize  = true,
+            Location  = new Point(135, y)
+        };
+        Controls.Add(subtitle);
+        y += 34;
 
         // Name
         Controls.Add(MakeLabel("Your Name:", y));
         _txtName.Location    = new Point(170, y - 2);
         _txtName.Size        = new Size(220, 28);
         _txtName.Font        = new Font("Segoe UI", 11);
-        _txtName.BackColor   = Color.FromArgb(40, 40, 55);
-        _txtName.ForeColor   = Color.White;
+        _txtName.BackColor   = Color.FromArgb(18, 28, 40);
+        _txtName.ForeColor   = Color.Cyan;
         _txtName.BorderStyle = BorderStyle.FixedSingle;
         Controls.Add(_txtName);
         y += 45;
@@ -72,8 +99,8 @@ public sealed class ConnectForm : Form
         _txtHost.Size        = new Size(160, 28);
         _txtHost.Text        = "127.0.0.1";
         _txtHost.Font        = new Font("Segoe UI", 11);
-        _txtHost.BackColor   = Color.FromArgb(40, 40, 55);
-        _txtHost.ForeColor   = Color.White;
+        _txtHost.BackColor   = Color.FromArgb(18, 28, 40);
+        _txtHost.ForeColor   = Color.Cyan;
         _txtHost.BorderStyle = BorderStyle.FixedSingle;
         Controls.Add(_txtHost);
         y += 45;
@@ -86,8 +113,8 @@ public sealed class ConnectForm : Form
         _nudPort.Maximum   = 65535;
         _nudPort.Value     = 9000;
         _nudPort.Font      = new Font("Segoe UI", 11);
-        _nudPort.BackColor = Color.FromArgb(40, 40, 55);
-        _nudPort.ForeColor = Color.White;
+        _nudPort.BackColor = Color.FromArgb(18, 28, 40);
+        _nudPort.ForeColor = Color.Cyan;
         Controls.Add(_nudPort);
         y += 50;
 
@@ -112,19 +139,20 @@ public sealed class ConnectForm : Form
         Controls.Add(_carPanel);
         y += 115;
 
-        // Join button
-        _btnJoin.Text      = "Join Game";
+        // Join button – neon cyan style
+        _btnJoin.Text      = "⚡  Join Game";
         _btnJoin.Location  = new Point(170, y);
-        _btnJoin.Size      = new Size(160, 42);
+        _btnJoin.Size      = new Size(165, 44);
         _btnJoin.Font      = new Font("Segoe UI", 13, FontStyle.Bold);
-        _btnJoin.BackColor = Color.DodgerBlue;
-        _btnJoin.ForeColor = Color.White;
+        _btnJoin.BackColor = Color.FromArgb(0, 55, 75);
+        _btnJoin.ForeColor = Color.Cyan;
         _btnJoin.FlatStyle = FlatStyle.Flat;
-        _btnJoin.FlatAppearance.BorderSize = 0;
+        _btnJoin.FlatAppearance.BorderColor = Color.Cyan;
+        _btnJoin.FlatAppearance.BorderSize  = 2;
         _btnJoin.Cursor    = Cursors.Hand;
         _btnJoin.Click    += OnJoinClicked;
         Controls.Add(_btnJoin);
-        y += 52;
+        y += 54;
 
         // Status
         _lblStatus.Location  = new Point(30, y);
@@ -261,7 +289,7 @@ public sealed class ConnectForm : Form
         btn.Location  = new Point(x, 10);
         btn.Size      = new Size(115, 70);
         btn.Font      = new Font("Segoe UI", 10, FontStyle.Bold);
-        btn.BackColor = Color.FromArgb(40, 40, 55);
+        btn.BackColor = Color.FromArgb(12, 20, 30);
         btn.ForeColor = accent;
         btn.FlatStyle = FlatStyle.Flat;
         btn.FlatAppearance.BorderColor = accent;
@@ -272,9 +300,9 @@ public sealed class ConnectForm : Form
     private void SelectCar(int car)
     {
         _selectedCar = car;
-        _btnCar1.BackColor = car == 1 ? Color.FromArgb(0, 80, 160) : Color.FromArgb(40, 40, 55);
-        _btnCar2.BackColor = car == 2 ? Color.FromArgb(140, 30, 0) : Color.FromArgb(40, 40, 55);
-        _btnCar3.BackColor = car == 3 ? Color.FromArgb(0, 100, 0)  : Color.FromArgb(40, 40, 55);
+        _btnCar1.BackColor = car == 1 ? Color.FromArgb(0, 70, 130)  : Color.FromArgb(12, 20, 30);
+        _btnCar2.BackColor = car == 2 ? Color.FromArgb(130, 25, 0)  : Color.FromArgb(12, 20, 30);
+        _btnCar3.BackColor = car == 3 ? Color.FromArgb(0, 90, 10)   : Color.FromArgb(12, 20, 30);
     }
 
     private async void OnJoinClicked(object? sender, EventArgs e)

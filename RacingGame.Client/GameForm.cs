@@ -1,3 +1,4 @@
+using System.Drawing.Drawing2D;
 using RacingGame.Shared;
 
 namespace RacingGame.Client;
@@ -52,11 +53,15 @@ public sealed class GameForm : Form
     private int _reconnectSecondsLeft = 0;
     private readonly System.Windows.Forms.Timer _reconnectTimer = new() { Interval = 1000 };
 
+    // ── Neon animation (pulsating glow effect) ────────────────────────────────
+    private float _glowPhase = 0f;   // advances each tick to drive sine-wave glow
+    private readonly System.Windows.Forms.Timer _animTimer = new() { Interval = 50 };
+
     // ── Car images loaded from the images/ folder ─────────────────────────────
     private readonly Image?[] _carImages = new Image?[4];  // index 1-3 used (index 0 unused)
 
     // ── Controls ──────────────────────────────────────────────────────────────
-    private readonly Panel  _trackPanel   = new();   // owner-drawn race track
+    private readonly DoubleBufferedPanel _trackPanel   = new();   // owner-drawn race track
     private readonly Label  _lblStatus    = new();   // top status bar
     private readonly Label  _lblWaiting   = new();   // overlay on track while waiting
     private readonly Label  _lblPing      = new();   // top-right ping display
@@ -98,6 +103,15 @@ public sealed class GameForm : Form
         // Start the ping timer so we measure latency every 2 seconds
         _pingTimer.Tick += OnPingTimerTick;
         _pingTimer.Start();
+
+        // Neon animation: advance glow phase every 50 ms, then request a repaint
+        _animTimer.Tick += (_, _) =>
+        {
+            _glowPhase += 0.12f;
+            if (_glowPhase > MathF.PI * 2) _glowPhase -= MathF.PI * 2;
+            _trackPanel.Invalidate();
+        };
+        _animTimer.Start();
 
         // Race timer ticks every second to update the elapsed-time display
         _raceTimer.Tick += (_, _) => UpdateRaceTimeLabel();
@@ -154,8 +168,7 @@ public sealed class GameForm : Form
         // ── Race track panel (center, all drawing done in DrawTrack) ──────────
         _trackPanel.Location    = new Point(10, 50);
         _trackPanel.Size        = new Size(880, TrackPanelHeight);
-        _trackPanel.BackColor   = Color.FromArgb(30, 30, 45);
-        _trackPanel.BorderStyle = BorderStyle.FixedSingle;
+        _trackPanel.BackColor   = Color.FromArgb(8, 8, 18);
         _trackPanel.Paint      += DrawTrack;
         Controls.Add(_trackPanel);
 
@@ -292,8 +305,8 @@ public sealed class GameForm : Form
     // Two alternating lane background colours
     private static readonly Color[] LaneColors =
     [
-        Color.FromArgb(45, 45, 65),
-        Color.FromArgb(38, 38, 58)
+        Color.FromArgb(28, 28, 48),
+        Color.FromArgb(20, 20, 38)
     ];
 
     // Car colours (one per lane index, used when no image file is found)
@@ -307,36 +320,77 @@ public sealed class GameForm : Form
     ];
 
     /// <summary>
-    /// Paints the entire race track: lanes, start/finish lines, cars, and any
-    /// active overlay (countdown or winner announcement).
-    /// Called automatically by Windows Forms whenever the panel needs redrawing.
+    /// Paints the entire race track with neon cyberpunk visuals: gradient lane
+    /// backgrounds, pulsating cyan edge lights, enhanced cars, and overlays for
+    /// the countdown and winner announcement.
     /// </summary>
     private void DrawTrack(object? sender, PaintEventArgs e)
     {
         var g = e.Graphics;
-        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        g.SmoothingMode      = SmoothingMode.AntiAlias;
+        g.InterpolationMode  = InterpolationMode.HighQualityBicubic;
+        g.CompositingQuality = CompositingQuality.HighQuality;
 
         int playerCount = Math.Max(_players.Count, 1);
-        // Shrink lane height if there are many players so they all fit on screen
         int laneH = Math.Min(LaneHeight, (TrackPanelHeight - 20) / playerCount);
+        int trackW = _trackPanel.Width;
+        int trackH = _trackPanel.Height;
 
-        // ── Draw lane backgrounds ─────────────────────────────────────────────
+        // ── Full background gradient ──────────────────────────────────────────
+        using (var bgBrush = new LinearGradientBrush(
+                   new Rectangle(0, 0, trackW, trackH),
+                   Color.FromArgb(6, 6, 16),
+                   Color.FromArgb(14, 14, 28),
+                   LinearGradientMode.Vertical))
+        {
+            g.FillRectangle(bgBrush, 0, 0, trackW, trackH);
+        }
+
+        // Subtle cyan grid overlay
+        using (var gridPen = new Pen(Color.FromArgb(12, 0, 200, 220), 1f))
+        {
+            for (int gx = 0; gx < trackW; gx += 40)
+                g.DrawLine(gridPen, gx, 0, gx, trackH);
+            for (int gy = 0; gy < trackH; gy += 40)
+                g.DrawLine(gridPen, 0, gy, trackW, gy);
+        }
+
+        // ── Lane backgrounds ──────────────────────────────────────────────────
         for (int i = 0; i < _players.Count; i++)
         {
             int laneY = 10 + i * laneH;
-            // Alternate between two slightly different dark colours
-            g.FillRectangle(new SolidBrush(LaneColors[i % 2]),
-                            TrackLeft, laneY, TrackRight - TrackLeft, laneH - 2);
+            using (var laneBrush = new LinearGradientBrush(
+                       new Rectangle(TrackLeft, laneY, TrackRight - TrackLeft, Math.Max(1, laneH - 2)),
+                       i % 2 == 0 ? Color.FromArgb(32, 32, 52) : Color.FromArgb(24, 24, 42),
+                       i % 2 == 0 ? Color.FromArgb(22, 22, 40) : Color.FromArgb(16, 16, 32),
+                       LinearGradientMode.Vertical))
+            {
+                g.FillRectangle(laneBrush, TrackLeft, laneY, TrackRight - TrackLeft, laneH - 2);
+            }
 
-            // Thin divider line between lanes
-            using var divPen = new Pen(Color.FromArgb(60, 60, 80), 1);
-            g.DrawLine(divPen, TrackLeft, laneY + laneH - 2, TrackRight, laneY + laneH - 2);
+            // Neon cyan lane-divider line
+            float lineY = laneY + laneH - 2;
+            DrawNeonLine(g, Color.FromArgb(60, 200, 255),
+                         TrackLeft, lineY, TrackRight, lineY,
+                         coreWidth: 1f, glowWidth: 5f, glowAlpha: 18);
         }
 
-        // ── Start line ───────────────────────────────────────────────────────
-        using var startPen = new Pen(Color.White, 2);
-        g.DrawLine(startPen, TrackLeft + CarWidth + 2, 8,
-                             TrackLeft + CarWidth + 2, 10 + _players.Count * laneH - 10);
+        // ── Pulsating neon track borders (top, bottom, left, right) ──────────
+        int pulseAlpha = (int)(38 + 22 * MathF.Sin(_glowPhase));
+        int topY  = 10;
+        int botY  = 10 + _players.Count * laneH - 2;
+
+        DrawNeonLine(g, Color.Cyan, TrackLeft, topY,  TrackRight, topY,  2f, 9f, pulseAlpha);
+        DrawNeonLine(g, Color.Cyan, TrackLeft, botY,  TrackRight, botY,  2f, 9f, pulseAlpha);
+        DrawNeonLine(g, Color.Cyan, TrackLeft, topY,  TrackLeft,  botY,  2f, 9f, pulseAlpha);
+        DrawNeonLine(g, Color.Cyan, TrackRight, topY, TrackRight, botY,  2f, 9f, pulseAlpha);
+
+        // ── Start line ────────────────────────────────────────────────────────
+        int startX = TrackLeft + CarWidth + 2;
+        DrawNeonLine(g, Color.White, startX, topY, startX, botY, 2f, 6f, 55);
+        using (var startFont = new Font("Segoe UI", 6.5f, FontStyle.Bold))
+        using (var startBrush = new SolidBrush(Color.FromArgb(140, 255, 255, 255)))
+            g.DrawString("START", startFont, startBrush, startX - 14, topY - 13);
 
         // ── Chequered finish line ─────────────────────────────────────────────
         DrawFinishLine(g, playerCount, laneH);
@@ -346,101 +400,182 @@ public sealed class GameForm : Form
         {
             var  p     = _players[i];
             int  pos   = _positions.TryGetValue(p.Name, out int v) ? v : 0;
-            // Convert position (0-100) to a pixel x-coordinate on the track
             int  carX  = TrackLeft + CarWidth + 4 + (int)((pos / 100.0) * TrackUsable);
             int  laneY = 10 + i * laneH;
             int  carY  = laneY + (laneH - CarHeight) / 2;
             bool isMe  = (p.Name == _myName);
 
-            // Use a loaded image if available, otherwise draw with code
             int imgIndex = Math.Clamp(p.CarChoice, 1, 3);
             if (_carImages[imgIndex] is Image img)
                 g.DrawImage(img, carX, carY, CarWidth, CarHeight);
             else
                 DrawCar(g, carX, carY, CarColors[i % CarColors.Length], isMe);
 
-            // White border around the local player's car for easy identification
+            // Pulsating cyan halo around the local player's car
             if (isMe)
             {
-                using var pen = new Pen(Color.White, 2);
-                g.DrawRoundedRectangle(pen, carX, carY + 8, CarWidth, CarHeight - 16, 6);
+                int glowA = (int)(110 + 90 * MathF.Sin(_glowPhase));
+                using (var glowPen = new Pen(Color.FromArgb(glowA / 3, Color.Cyan), 10f))
+                    g.DrawRoundedRectangle(glowPen, carX - 4, carY + 5, CarWidth + 8, CarHeight - 10, 10);
+                using (var haloPen = new Pen(Color.FromArgb(glowA, Color.Cyan), 2.5f))
+                    g.DrawRoundedRectangle(haloPen, carX - 2, carY + 7, CarWidth + 4, CarHeight - 14, 8);
             }
 
-            // Player name above the car
-            using var nameFont = new Font("Segoe UI", 7.5f, FontStyle.Bold);
-            g.DrawString(p.Name, nameFont, Brushes.White, carX + 2, carY - 14);
+            // Player name with drop shadow
+            using (var nameFont = new Font("Segoe UI", 7.5f, FontStyle.Bold))
+            {
+                using (var shadowBrush = new SolidBrush(Color.FromArgb(180, 0, 0, 0)))
+                    g.DrawString(p.Name, nameFont, shadowBrush, carX + 3, carY - 13);
+                g.DrawString(p.Name, nameFont, Brushes.White, carX + 2, carY - 14);
+            }
         }
 
-        // ── Countdown overlay (3 → 2 → 1 → Go!) ──────────────────────────────
+        // ── Countdown overlay ─────────────────────────────────────────────────
         if (!string.IsNullOrEmpty(_countdown))
         {
-            // Semi-transparent dark background
-            using var bg = new SolidBrush(Color.FromArgb(180, 0, 0, 0));
-            g.FillRectangle(bg, 0, 0, _trackPanel.Width, _trackPanel.Height);
+            using (var bg = new SolidBrush(Color.FromArgb(185, 0, 0, 0)))
+                g.FillRectangle(bg, 0, 0, trackW, trackH);
 
-            // Large tick number or "Go!" text
-            Color tickColor = _countdown == "Go!" ? Color.LimeGreen : Color.White;
-            using var bigFont = new Font("Segoe UI", 80, FontStyle.Bold);
-            g.DrawString(_countdown, bigFont, new SolidBrush(tickColor),
-                         new RectangleF(0, 80, _trackPanel.Width, 260),
-                         new StringFormat { Alignment = StringAlignment.Center });
+            Color tickColor = _countdown == "Go!" ? Color.LimeGreen
+                            : _countdown == "3"   ? Color.OrangeRed
+                            : _countdown == "2"   ? Color.Orange
+                            :                       Color.Cyan;
+
+            // Pulsating ring behind the number
+            int cx = trackW / 2;
+            int cy = trackH / 2 - 40;
+            int ringA = (int)(80 + 80 * MathF.Sin(_glowPhase * 2));
+            using (var ringBrush = new SolidBrush(Color.FromArgb(ringA / 4, tickColor)))
+                g.FillEllipse(ringBrush, cx - 95, cy - 95, 190, 190);
+            using (var ringPen = new Pen(Color.FromArgb(ringA, tickColor), 3f))
+                g.DrawEllipse(ringPen, cx - 95, cy - 95, 190, 190);
+
+            using (var bigFont = new Font("Segoe UI", 80, FontStyle.Bold))
+            {
+                var fmt = new StringFormat { Alignment = StringAlignment.Center };
+                // Shadow
+                using (var shadowBrush = new SolidBrush(Color.FromArgb(110, tickColor)))
+                    g.DrawString(_countdown, bigFont, shadowBrush,
+                                 new RectangleF(3, 83, trackW, 260), fmt);
+                // Main text
+                using (var textBrush = new SolidBrush(tickColor))
+                    g.DrawString(_countdown, bigFont, textBrush,
+                                 new RectangleF(0, 80, trackW, 260), fmt);
+            }
         }
 
-        // ── Winner overlay (shown after race ends) ────────────────────────────
+        // ── Winner overlay ────────────────────────────────────────────────────
         if (!string.IsNullOrEmpty(_winnerText))
         {
-            // Semi-transparent dark background
-            using var bg = new SolidBrush(Color.FromArgb(200, 0, 0, 0));
-            g.FillRectangle(bg, 0, 0, _trackPanel.Width, _trackPanel.Height);
+            using (var bg = new SolidBrush(Color.FromArgb(205, 0, 0, 0)))
+                g.FillRectangle(bg, 0, 0, trackW, trackH);
 
-            // Large winner announcement
-            using var bigFont = new Font("Segoe UI", 26, FontStyle.Bold);
-            g.DrawString(_winnerText, bigFont, Brushes.Gold,
-                         new RectangleF(0, 100, _trackPanel.Width, 120),
-                         new StringFormat { Alignment = StringAlignment.Center });
+            // Neon box behind the text
+            int boxW = 620, boxH = 170;
+            int boxX = (trackW - boxW) / 2, boxY = 75;
+            using (var boxBg = new SolidBrush(Color.FromArgb(70, 0, 200, 230)))
+                g.FillRoundedRectangle(boxBg, boxX, boxY, boxW, boxH, 18);
+            int winGlow = (int)(90 + 100 * MathF.Sin(_glowPhase));
+            using (var boxPen = new Pen(Color.FromArgb(winGlow, Color.Cyan), 3f))
+                g.DrawRoundedRectangle(boxPen, boxX, boxY, boxW, boxH, 18);
 
-            // Instructions below the announcement
-            using var subFont = new Font("Segoe UI", 14);
-            g.DrawString("Click \"Play Again\" to restart or \"Quit\" to leave.",
-                         subFont, Brushes.LightGray,
-                         new RectangleF(0, 230, _trackPanel.Width, 60),
-                         new StringFormat { Alignment = StringAlignment.Center });
+            var fmt = new StringFormat { Alignment = StringAlignment.Center };
+            using (var bigFont = new Font("Segoe UI", 26, FontStyle.Bold))
+                g.DrawString(_winnerText, bigFont, Brushes.Gold,
+                             new RectangleF(0, 100, trackW, 120), fmt);
+            using (var subFont = new Font("Segoe UI", 13))
+            using (var subBrush = new SolidBrush(Color.LightCyan))
+                g.DrawString("Click  \"Play Again\"  to restart  ·  \"Quit\"  to leave.",
+                             subFont, subBrush,
+                             new RectangleF(0, 232, trackW, 50), fmt);
         }
     }
 
-    /// <summary>Draws a chequered flag pattern on the right edge of the track.</summary>
-    private void DrawFinishLine(Graphics g, int playerCount, int laneH)
+    /// <summary>
+    /// Draws a neon line with an outer glow, middle glow, and bright core.
+    /// </summary>
+    private static void DrawNeonLine(Graphics g, Color color,
+        float x1, float y1, float x2, float y2,
+        float coreWidth = 2f, float glowWidth = 8f, int glowAlpha = 40)
+    {
+        using (var outerPen = new Pen(Color.FromArgb(glowAlpha, color), glowWidth))
+            g.DrawLine(outerPen, x1, y1, x2, y2);
+        using (var midPen = new Pen(Color.FromArgb(Math.Min(255, glowAlpha * 2), color), glowWidth / 2.5f))
+            g.DrawLine(midPen, x1, y1, x2, y2);
+        using (var corePen = new Pen(color, coreWidth))
+            g.DrawLine(corePen, x1, y1, x2, y2);
+    }
+
+    /// <summary>Draws a chequered flag finish line with a neon cyan glow halo.</summary>
+    private static void DrawFinishLine(Graphics g, int playerCount, int laneH)
     {
         int checkSize = 10;
         int totalH    = playerCount * laneH;
         int rows      = totalH / checkSize;
         bool white    = true;
+        int fx        = TrackRight - 10;
         for (int row = 0; row < rows; row++, white = !white)
         {
             g.FillRectangle(white ? Brushes.White : Brushes.Black,
-                            TrackRight - 10, 10 + row * checkSize, 10, checkSize);
+                            fx, 10 + row * checkSize, 10, checkSize);
         }
+        // Cyan glow on the finish column
+        using (var glow = new Pen(Color.FromArgb(50, Color.Cyan), 14f))
+            g.DrawLine(glow, fx + 5, 10, fx + 5, 10 + totalH - 2);
+        using (var bright = new Pen(Color.FromArgb(120, Color.Cyan), 3f))
+            g.DrawLine(bright, fx - 1, 10, fx - 1, 10 + totalH - 2);
     }
 
     /// <summary>
-    /// Draws a car using rounded rectangles and circles.
+    /// Draws a car using gradient fills and rounded shapes.
     /// Used when no PNG image file was found for this car slot.
     /// </summary>
     private static void DrawCar(Graphics g, int x, int y, Color color, bool isMe)
     {
-        // Main body
-        using var bodyBrush = new SolidBrush(color);
-        g.FillRoundedRectangle(bodyBrush, x, y + 8, CarWidth, CarHeight - 16, 6);
+        // Body gradient (lighter top → darker bottom)
+        Color bodyTop    = Color.FromArgb(Math.Min(255, color.R + 60),
+                                          Math.Min(255, color.G + 60),
+                                          Math.Min(255, color.B + 60));
+        using (var bodyBrush = new LinearGradientBrush(
+                   new Rectangle(x, y + 8, CarWidth, CarHeight - 16),
+                   bodyTop, color, LinearGradientMode.Vertical))
+        {
+            g.FillRoundedRectangle(bodyBrush, x, y + 8, CarWidth, CarHeight - 16, 6);
+        }
 
-        // Roof (lighter shade on top of body)
-        using var roofBrush = new SolidBrush(isMe ? Color.White : Color.LightGray);
-        g.FillRoundedRectangle(roofBrush, x + 14, y + 4, CarWidth - 28, CarHeight - 10, 5);
+        // Metallic roof with a specular shine
+        using (var roofBrush = new LinearGradientBrush(
+                   new Rectangle(x + 14, y + 4, CarWidth - 28, CarHeight - 10),
+                   Color.FromArgb(230, 245, 255),
+                   Color.FromArgb(130, 150, 175),
+                   LinearGradientMode.Vertical))
+        {
+            g.FillRoundedRectangle(roofBrush, x + 14, y + 4, CarWidth - 28, CarHeight - 10, 5);
+        }
 
-        // Front and rear wheels
-        g.FillEllipse(Brushes.DarkGray, x + 6,             y + CarHeight - 14, 16, 16);
-        g.FillEllipse(Brushes.DarkGray, x + CarWidth - 22, y + CarHeight - 14, 16, 16);
-        g.FillEllipse(Brushes.Gray,     x + 8,             y + CarHeight - 12, 12, 12);
-        g.FillEllipse(Brushes.Gray,     x + CarWidth - 20, y + CarHeight - 12, 12, 12);
+        // Tinted windshield
+        using (var wsBrush = new SolidBrush(Color.FromArgb(70, 80, 130, 200)))
+            g.FillRoundedRectangle(wsBrush, x + 16, y + 6, 20, CarHeight - 14, 3);
+
+        // Wheels with rim highlights
+        DrawWheel(g, x + 6,             y + CarHeight - 14);
+        DrawWheel(g, x + CarWidth - 22, y + CarHeight - 14);
+
+        // Headlights (front glow)
+        using (var headBrush = new SolidBrush(Color.FromArgb(255, 255, 245, 180)))
+        {
+            g.FillEllipse(headBrush, x + CarWidth - 7, y + 11,  5, 5);
+            g.FillEllipse(headBrush, x + CarWidth - 7, y + CarHeight - 17, 5, 5);
+        }
+    }
+
+    /// <summary>Draws a single wheel with a dark tyre and a bright rim.</summary>
+    private static void DrawWheel(Graphics g, int wx, int wy)
+    {
+        g.FillEllipse(Brushes.DarkSlateGray, wx, wy, 16, 16);
+        using (var rimBrush = new SolidBrush(Color.FromArgb(200, 220, 230)))
+            g.FillEllipse(rimBrush, wx + 3, wy + 3, 10, 10);
+        g.FillEllipse(Brushes.DimGray, wx + 6, wy + 6, 4, 4);
     }
 
     // ── Message handling ──────────────────────────────────────────────────────
@@ -542,7 +677,7 @@ public sealed class GameForm : Form
                 _trackPanel.Invalidate();
                 break;
 
-            // ── Race over ─────────────────────────────────────────────────────
+            // ── Race over ─────────────────────────────────────────────────
             case MessageType.GameOver:
                 _phase      = GamePhase.Finished;
                 _raceTimer.Stop();   // freeze the race clock
@@ -552,9 +687,11 @@ public sealed class GameForm : Form
                         _positions[kv.Key] = kv.Value;
 
                 // Personalise the message for the local player
-                _winnerText = msg.WinnerName == _myName
+                string winnerName = msg.WinnerName ?? "Unknown";
+                bool iWon = (winnerName == _myName);
+                _winnerText = iWon
                     ? $"🏆  YOU WIN, {_myName}!  🏆"
-                    : $"🏆  {msg.WinnerName} WINS!  🏆";
+                    : $"🏆  {winnerName} WINS!  🏆";
                 if (!string.IsNullOrEmpty(msg.Message))
                     _winnerText += $"\n{msg.Message}";
 
@@ -562,10 +699,12 @@ public sealed class GameForm : Form
                 SetButtonState(GamePhase.Finished);
 
                 // Save to local high scores if this player won
-                if (msg.WinnerName == _myName)
-                    HighScoreManager.RecordWin(_myName);
+                if (iWon) HighScoreManager.RecordWin(_myName);
 
                 _trackPanel.Invalidate();
+
+                // Show the winner popup after the track has been repainted
+                BeginInvoke(() => ShowWinnerPopup(winnerName, iWon));
                 break;
 
             // ── Pong (response to our Ping) ───────────────────────────────────
@@ -669,8 +808,110 @@ public sealed class GameForm : Form
     // ── Timer callbacks ───────────────────────────────────────────────────────
 
     /// <summary>
-    /// Fires every 2 seconds to send a Ping and measure round-trip latency.
+    /// Shows a neon-styled popup announcing the race winner.
+    /// Contains "Play Again" (closes GameForm → returns to lobby) and
+    /// "Quit" (exits the application) buttons.
     /// </summary>
+    private void ShowWinnerPopup(string winnerName, bool iWon)
+    {
+        var dlg = new Form
+        {
+            Text            = "Race Finished!",
+            Size            = new Size(500, 320),
+            StartPosition   = FormStartPosition.CenterParent,
+            FormBorderStyle = FormBorderStyle.None,
+            BackColor       = Color.FromArgb(10, 10, 22),
+            ForeColor       = Color.White,
+            ShowInTaskbar   = false,
+        };
+
+        // Neon cyan border drawn by the dialog's Paint handler
+        dlg.Paint += (_, pe) =>
+        {
+            var g2 = pe.Graphics;
+            g2.SmoothingMode = SmoothingMode.AntiAlias;
+            using (var outerGlow = new Pen(Color.FromArgb(35, Color.Cyan), 10f))
+                g2.DrawRectangle(outerGlow, 5, 5, dlg.Width - 10, dlg.Height - 10);
+            using (var border = new Pen(Color.Cyan, 2f))
+                g2.DrawRectangle(border, 2, 2, dlg.Width - 4, dlg.Height - 4);
+        };
+
+        // Trophy / flag emoji
+        string icon = iWon ? "🏆" : "🏁";
+        dlg.Controls.Add(new Label
+        {
+            Text      = icon,
+            Font      = new Font("Segoe UI Emoji", 42),
+            AutoSize  = true,
+            Location  = new Point(210, 16),
+            BackColor = Color.Transparent,
+        });
+
+        // Headline
+        string headline = iWon ? $"YOU WIN, {_myName}!" : $"{winnerName} WINS!";
+        dlg.Controls.Add(new Label
+        {
+            Text      = headline,
+            Font      = new Font("Segoe UI", 26, FontStyle.Bold),
+            ForeColor = iWon ? Color.Cyan : Color.Gold,
+            AutoSize  = false,
+            Size      = new Size(460, 56),
+            Location  = new Point(20, 100),
+            TextAlign = ContentAlignment.MiddleCenter,
+            BackColor = Color.Transparent,
+        });
+
+        // Sub-message
+        string sub = iWon ? "Congratulations! 🎉" : "Better luck next time!";
+        dlg.Controls.Add(new Label
+        {
+            Text      = sub,
+            Font      = new Font("Segoe UI", 13),
+            ForeColor = Color.LightCyan,
+            AutoSize  = false,
+            Size      = new Size(460, 28),
+            Location  = new Point(20, 160),
+            TextAlign = ContentAlignment.MiddleCenter,
+            BackColor = Color.Transparent,
+        });
+
+        // "Play Again" button → close popup, then close GameForm (ConnectForm re-appears)
+        var btnPlay = new Button
+        {
+            Text      = "Play Again",
+            Location  = new Point(60, 220),
+            Size      = new Size(165, 50),
+            Font      = new Font("Segoe UI", 13, FontStyle.Bold),
+            BackColor = Color.FromArgb(0, 55, 75),
+            ForeColor = Color.Cyan,
+            FlatStyle = FlatStyle.Flat,
+            Cursor    = Cursors.Hand,
+        };
+        btnPlay.FlatAppearance.BorderColor = Color.Cyan;
+        btnPlay.FlatAppearance.BorderSize  = 2;
+        btnPlay.Click += (_, _) => { dlg.Close(); Close(); };
+        dlg.Controls.Add(btnPlay);
+
+        // "Quit Game" button → close popup, then exit the application
+        var btnQuitDlg = new Button
+        {
+            Text      = "Quit Game",
+            Location  = new Point(270, 220),
+            Size      = new Size(165, 50),
+            Font      = new Font("Segoe UI", 13, FontStyle.Bold),
+            BackColor = Color.FromArgb(60, 0, 0),
+            ForeColor = Color.OrangeRed,
+            FlatStyle = FlatStyle.Flat,
+            Cursor    = Cursors.Hand,
+        };
+        btnQuitDlg.FlatAppearance.BorderColor = Color.OrangeRed;
+        btnQuitDlg.FlatAppearance.BorderSize  = 2;
+        btnQuitDlg.Click += (_, _) => { dlg.Close(); Application.Exit(); };
+        dlg.Controls.Add(btnQuitDlg);
+
+        dlg.ShowDialog(this);
+    }
+
     private async void OnPingTimerTick(object? sender, EventArgs e)
     {
         try
@@ -772,6 +1013,7 @@ public sealed class GameForm : Form
         _pingTimer.Stop();
         _raceTimer.Stop();
         _reconnectTimer.Stop();
+        _animTimer.Stop();
 
         // Unsubscribe from network events and close the TCP connection
         _net.MessageReceived -= OnMessageReceived;
@@ -781,6 +1023,23 @@ public sealed class GameForm : Form
 
     // ── Local GamePhase shadow ─────────────────────────────────────────────────
     private enum GamePhase { Waiting, Countdown, InProgress, Finished }
+}
+
+// ── Double-buffered panel (eliminates flicker during redraws) ────────────────
+/// <summary>
+/// A Panel subclass with double buffering enabled so that each redraw is
+/// composited off-screen before being blitted to the display, eliminating
+/// the flicker that would otherwise appear during the race animation.
+/// </summary>
+internal sealed class DoubleBufferedPanel : Panel
+{
+    public DoubleBufferedPanel()
+    {
+        SetStyle(ControlStyles.OptimizedDoubleBuffer |
+                 ControlStyles.AllPaintingInWmPaint  |
+                 ControlStyles.UserPaint, true);
+        UpdateStyles();
+    }
 }
 
 // ── Graphics extension helpers (rounded rectangles) ─────────────────────────
