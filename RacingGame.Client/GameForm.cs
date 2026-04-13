@@ -40,6 +40,10 @@ public sealed partial class GameForm : Form
     private bool      _iAmReady    = false;           // true after local player clicks Ready
     private string    _readyStatus = string.Empty;   // e.g. "1/3 ready" from server
 
+    // ── Move click counter (car moves after every 5 clicks) ──────────────────
+    private const int ClicksPerMove = 5;   // number of clicks required to advance the car
+    private int _moveClickCount = 0;       // clicks accumulated since last move was sent
+
     // ── Ping / latency ────────────────────────────────────────────────────────
     private long _lastPingSentTicks = 0;   // ticks when the last Ping was sent
     private int  _pingMs = -1;            // last measured round-trip in ms (-1 = unknown)
@@ -487,6 +491,9 @@ public sealed partial class GameForm : Form
                 _lblStatus.Text  = "Race started! Click MOVE to advance!";
                 _lblWaiting.Visible = false;
                 SetButtonState(GamePhase.InProgress);
+                // Reset the move click counter for the new race
+                _moveClickCount = 0;
+                _btnMove.Text   = "MOVE!";
                 // Start the race timer
                 _raceStartTime = DateTime.UtcNow;
                 _raceTimer.Start();
@@ -599,12 +606,28 @@ public sealed partial class GameForm : Form
     }
 
     /// <summary>
-    /// Sends a Move message to advance this player's car.
+    /// Advances this player's car by one step after every <see cref="ClicksPerMove"/> clicks.
+    /// The button label counts down so players know how many clicks remain.
     /// Only processed by the server while the race is in progress.
     /// </summary>
     private async void OnMoveClicked(object? sender, EventArgs e)
     {
         if (_phase != GamePhase.InProgress) return;
+
+        _moveClickCount++;
+
+        if (_moveClickCount < ClicksPerMove)
+        {
+            // Not yet – update the button label to show how many more clicks are needed
+            int remaining = ClicksPerMove - _moveClickCount;
+            _btnMove.Text = $"MOVE ({remaining} more)";
+            return;
+        }
+
+        // Fifth click – reset counter, restore label, and send the move
+        _moveClickCount = 0;
+        _btnMove.Text   = "MOVE!";
+
         try { await _net.SendAsync(new GameMessage { Type = MessageType.Move }); }
         catch { _lblStatus.Text = "Connection lost."; _btnMove.Enabled = false; }
     }

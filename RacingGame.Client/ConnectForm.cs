@@ -156,7 +156,7 @@ public sealed partial class ConnectForm : Form
             CarChoice  = _selectedCar;
 
             var gameForm = new GameForm(net, name, _selectedCar, host, port);
-            gameForm.FormClosed += (_, _) => Show();
+            gameForm.FormClosed += (_, _) => { _btnJoin.Enabled = true; Show(); };
             Hide();
             gameForm.Show();
         }
