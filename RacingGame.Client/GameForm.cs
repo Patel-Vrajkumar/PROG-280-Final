@@ -13,7 +13,7 @@ namespace RacingGame.Client;
 /// If the server connection is lost a reconnect countdown is displayed.
 /// All UI updates are triggered by messages from the server.
 /// </summary>
-public sealed class GameForm : Form
+public sealed partial class GameForm : Form
 {
     // ── Layout constants ──────────────────────────────────────────────────────
     private const int TrackPanelHeight = 420;   // height of the race track panel in pixels
@@ -60,41 +60,22 @@ public sealed class GameForm : Form
     // ── Car images loaded from the images/ folder ─────────────────────────────
     private readonly Image?[] _carImages = new Image?[4];  // index 1-3 used (index 0 unused)
 
-    // ── Controls ──────────────────────────────────────────────────────────────
-    private readonly DoubleBufferedPanel _trackPanel   = new();   // owner-drawn race track
-    private readonly Label  _lblStatus    = new();   // top status bar
-    private readonly Label  _lblWaiting   = new();   // overlay on track while waiting
-    private readonly Label  _lblPing      = new();   // top-right ping display
-    private readonly Label  _lblRaceTime  = new();   // elapsed race time display
-    private readonly Button _btnReady     = new();   // "I'm Ready!" – waiting phase
-    private readonly Button _btnMove      = new();   // "MOVE!" – race phase
-    private readonly Button _btnResign    = new();   // "Resign" – race phase
-    private readonly Button _btnRestart   = new();   // "Play Again" – after race
-    private readonly Button _btnQuit      = new();   // "Quit" – after race
-    private readonly Panel  _reconnectPanel = new(); // shown when disconnected
-
     public GameForm(NetworkClient net, string playerName, int carChoice,
                     string serverHost, int serverPort)
     {
-        _net        = net;
-        _myName     = playerName;
+        _net         = net;
+        _myName      = playerName;
         _myCarChoice = carChoice;
-        _serverHost = serverHost;
-        _serverPort = serverPort;
+        _serverHost  = serverHost;
+        _serverPort  = serverPort;
 
-        Text            = $"Racing Game  –  {playerName}";
-        Size            = new Size(920, 590);
-        StartPosition   = FormStartPosition.CenterScreen;
-        FormBorderStyle = FormBorderStyle.FixedSingle;
-        MaximizeBox     = false;
-        BackColor       = Color.FromArgb(15, 15, 25);
-        ForeColor       = Color.White;
+        InitializeComponent();
+
+        // Override the title to include the player's name
+        Text = $"Racing Game  –  {playerName}";
 
         // Load car sprite images from the images/ folder if available
         LoadCarImages();
-
-        // Build all the controls
-        BuildUI();
 
         // Subscribe to network events
         net.MessageReceived += OnMessageReceived;
@@ -141,163 +122,6 @@ public sealed class GameForm : Form
                 catch { /* file exists but couldn't be read – use drawn car */ }
             }
         }
-    }
-
-    // ── UI construction ───────────────────────────────────────────────────────
-
-    private void BuildUI()
-    {
-        // ── Status bar (top, shows current game state) ────────────────────────
-        _lblStatus.Location  = new Point(10, 14);
-        _lblStatus.Size      = new Size(780, 28);
-        _lblStatus.Font      = new Font("Segoe UI", 11, FontStyle.Bold);
-        _lblStatus.ForeColor = Color.Gold;
-        _lblStatus.TextAlign = ContentAlignment.MiddleCenter;
-        _lblStatus.Text      = "Waiting for players …";
-        Controls.Add(_lblStatus);
-
-        // ── Ping label (top-right, shows round-trip latency) ──────────────────
-        _lblPing.Location  = new Point(795, 14);
-        _lblPing.Size      = new Size(110, 28);
-        _lblPing.Font      = new Font("Consolas", 10);
-        _lblPing.ForeColor = Color.LimeGreen;
-        _lblPing.TextAlign = ContentAlignment.MiddleRight;
-        _lblPing.Text      = "Ping: –";
-        Controls.Add(_lblPing);
-
-        // ── Race track panel (center, all drawing done in DrawTrack) ──────────
-        _trackPanel.Location    = new Point(10, 50);
-        _trackPanel.Size        = new Size(880, TrackPanelHeight);
-        _trackPanel.BackColor   = Color.FromArgb(8, 8, 18);
-        _trackPanel.Paint      += DrawTrack;
-        Controls.Add(_trackPanel);
-
-        // ── Waiting overlay (shown on the track before the race begins) ────────
-        _lblWaiting.Location  = new Point(200, 150);
-        _lblWaiting.Size      = new Size(480, 100);
-        _lblWaiting.Font      = new Font("Segoe UI", 16, FontStyle.Bold);
-        _lblWaiting.ForeColor = Color.Cyan;
-        _lblWaiting.BackColor = Color.Transparent;
-        _lblWaiting.TextAlign = ContentAlignment.MiddleCenter;
-        _lblWaiting.Text      = "Waiting for players …\nAt least 2 needed.  Click Ready!";
-        _trackPanel.Controls.Add(_lblWaiting);
-
-        // ── Race timer label (bottom-left, shown during race) ─────────────────
-        _lblRaceTime.Location  = new Point(10, 496);
-        _lblRaceTime.Size      = new Size(160, 28);
-        _lblRaceTime.Font      = new Font("Consolas", 11);
-        _lblRaceTime.ForeColor = Color.LightGray;
-        _lblRaceTime.Text      = string.Empty;
-        Controls.Add(_lblRaceTime);
-
-        // ── Resign button (shown during race, left side) ──────────────────────
-        _btnResign.Text      = "Resign";
-        _btnResign.Location  = new Point(180, 490);
-        _btnResign.Size      = new Size(120, 44);
-        _btnResign.Font      = new Font("Segoe UI", 11, FontStyle.Bold);
-        _btnResign.BackColor = Color.DarkRed;
-        _btnResign.ForeColor = Color.White;
-        _btnResign.FlatStyle = FlatStyle.Flat;
-        _btnResign.FlatAppearance.BorderSize = 0;
-        _btnResign.Cursor    = Cursors.Hand;
-        _btnResign.Visible   = false;   // only shown while race is in progress
-        _btnResign.Click    += OnResignClicked;
-        Controls.Add(_btnResign);
-
-        // ── Ready button (shown in waiting room) ──────────────────────────────
-        _btnReady.Text      = "I'm Ready!";
-        _btnReady.Location  = new Point(310, 490);
-        _btnReady.Size      = new Size(160, 44);
-        _btnReady.Font      = new Font("Segoe UI", 13, FontStyle.Bold);
-        _btnReady.BackColor = Color.ForestGreen;
-        _btnReady.ForeColor = Color.White;
-        _btnReady.FlatStyle = FlatStyle.Flat;
-        _btnReady.FlatAppearance.BorderSize = 0;
-        _btnReady.Cursor    = Cursors.Hand;
-        _btnReady.Click    += OnReadyClicked;
-        Controls.Add(_btnReady);
-
-        // ── Move button (shown during race) ──────────────────────────────────
-        _btnMove.Text      = "MOVE!";
-        _btnMove.Location  = new Point(490, 490);
-        _btnMove.Size      = new Size(200, 44);
-        _btnMove.Font      = new Font("Segoe UI", 14, FontStyle.Bold);
-        _btnMove.BackColor = Color.DodgerBlue;
-        _btnMove.ForeColor = Color.White;
-        _btnMove.FlatStyle = FlatStyle.Flat;
-        _btnMove.FlatAppearance.BorderSize = 0;
-        _btnMove.Cursor    = Cursors.Hand;
-        _btnMove.Enabled   = false;
-        _btnMove.Visible   = false;   // only shown during race
-        _btnMove.Click    += OnMoveClicked;
-        Controls.Add(_btnMove);
-
-        // ── Play Again button (shown after race ends) ─────────────────────────
-        _btnRestart.Text      = "Play Again";
-        _btnRestart.Location  = new Point(310, 490);
-        _btnRestart.Size      = new Size(160, 44);
-        _btnRestart.Font      = new Font("Segoe UI", 13, FontStyle.Bold);
-        _btnRestart.BackColor = Color.DodgerBlue;
-        _btnRestart.ForeColor = Color.White;
-        _btnRestart.FlatStyle = FlatStyle.Flat;
-        _btnRestart.FlatAppearance.BorderSize = 0;
-        _btnRestart.Cursor    = Cursors.Hand;
-        _btnRestart.Visible   = false;
-        // Closing this form returns to ConnectForm because ConnectForm registered:
-        //   gameForm.FormClosed += (_, _) => Show();
-        _btnRestart.Click += (_, _) => Close();
-        Controls.Add(_btnRestart);
-
-        // ── Quit button (shown after race ends) ───────────────────────────────
-        _btnQuit.Text      = "Quit";
-        _btnQuit.Location  = new Point(490, 490);
-        _btnQuit.Size      = new Size(200, 44);
-        _btnQuit.Font      = new Font("Segoe UI", 13, FontStyle.Bold);
-        _btnQuit.BackColor = Color.Firebrick;
-        _btnQuit.ForeColor = Color.White;
-        _btnQuit.FlatStyle = FlatStyle.Flat;
-        _btnQuit.FlatAppearance.BorderSize = 0;
-        _btnQuit.Cursor    = Cursors.Hand;
-        _btnQuit.Visible   = false;
-        // Closing this form also returns to ConnectForm (see above)
-        _btnQuit.Click += (_, _) => Close();
-        Controls.Add(_btnQuit);
-
-        // ── Reconnect panel (shown when the TCP connection is lost) ───────────
-        // Overlays the button row; hidden until a disconnect event fires.
-        _reconnectPanel.Location  = new Point(10, 485);
-        _reconnectPanel.Size      = new Size(880, 60);
-        _reconnectPanel.BackColor = Color.FromArgb(50, 0, 0);
-        _reconnectPanel.Visible   = false;
-        Controls.Add(_reconnectPanel);
-
-        var lblReconnect = new Label
-        {
-            Name      = "lblReconnect",
-            Location  = new Point(10, 10),
-            Size      = new Size(460, 36),
-            Font      = new Font("Segoe UI", 11, FontStyle.Bold),
-            ForeColor = Color.OrangeRed,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Text      = "Connection lost!"
-        };
-        _reconnectPanel.Controls.Add(lblReconnect);
-
-        var btnReturnToLobby = new Button
-        {
-            Text      = "Return to Lobby",
-            Location  = new Point(490, 8),
-            Size      = new Size(170, 38),
-            Font      = new Font("Segoe UI", 10, FontStyle.Bold),
-            BackColor = Color.DodgerBlue,
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Cursor    = Cursors.Hand
-        };
-        btnReturnToLobby.FlatAppearance.BorderSize = 0;
-        // Close the form → ConnectForm re-appears so the player can rejoin
-        btnReturnToLobby.Click += (_, _) => Close();
-        _reconnectPanel.Controls.Add(btnReturnToLobby);
     }
 
     // ── Track painting ────────────────────────────────────────────────────────
@@ -955,8 +779,7 @@ public sealed class GameForm : Form
     /// <summary>Updates the countdown text inside the reconnect panel.</summary>
     private void UpdateReconnectLabel()
     {
-        if (_reconnectPanel.Controls["lblReconnect"] is Label lbl)
-            lbl.Text = $"Connection lost!  Returning to lobby in {_reconnectSecondsLeft}s …";
+        _lblReconnect.Text = $"Connection lost!  Returning to lobby in {_reconnectSecondsLeft}s …";
     }
 
     // ── UI helpers ────────────────────────────────────────────────────────────

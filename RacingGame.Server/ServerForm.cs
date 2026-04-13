@@ -13,190 +13,42 @@ namespace RacingGame.Server;
 /// AI bots are spawned automatically when a player clicks "I'm Ready!"
 /// to fill any empty slots up to the maximum of 5 players.
 /// </summary>
-public sealed class ServerForm : Form
+public sealed partial class ServerForm : Form
 {
-    // ── Controls ──────────────────────────────────────────────────────────────
-    private readonly ComboBox      _cboIp      = new();   // local IP addresses drop-down
-    private readonly NumericUpDown _nudPort    = new();   // TCP port input
-    private readonly Button        _btnStart   = new();   // Start / Stop toggle button
-    private readonly ListBox       _lstPlayers = new();   // live list of connected players
-    private readonly RichTextBox   _rtbLog     = new();   // scrolling server log
-
     // ── Server state ──────────────────────────────────────────────────────────
     private GameServer? _server;       // null when the server is stopped
     private Task?       _serverTask;   // background task for StartAsync()
 
     public ServerForm()
     {
-        Text            = "Neon Racing 2026 – Server";
-        Size            = new Size(640, 640);
-        StartPosition   = FormStartPosition.CenterScreen;
-        FormBorderStyle = FormBorderStyle.FixedDialog;
-        MaximizeBox     = false;
-        BackColor       = Color.FromArgb(8, 8, 18);
-        ForeColor       = Color.White;
+        InitializeComponent();
 
-        BuildUI();
-
-        // Draw a neon border on the server window
-        Paint += (_, e) =>
-        {
-            var g = e.Graphics;
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            using (var glow = new Pen(Color.FromArgb(30, Color.Cyan), 10f))
-                g.DrawRectangle(glow, 5, 5, Width - 10, Height - 10);
-            using (var line = new Pen(Color.FromArgb(120, Color.Cyan), 1.5f))
-                g.DrawRectangle(line, 2, 2, Width - 5, Height - 5);
-        };
-
-        // When the window is closed, stop the server and all bots
-        FormClosing += (_, _) => StopEverything();
-    }
-
-    // ── UI construction ───────────────────────────────────────────────────────
-
-    private void BuildUI()
-    {
-        int y = 20;
-
-        // ── Title ─────────────────────────────────────────────────────────────
-        Controls.Add(new Label
-        {
-            Text      = "🏎  Neon Racing 2026 – Server",
-            Font      = new Font("Segoe UI", 16, FontStyle.Bold),
-            ForeColor = Color.Cyan,
-            AutoSize  = true,
-            Location  = new Point(20, y)
-        });
-        y += 45;
-
-        // ── Subtitle / info ───────────────────────────────────────────────────
-        Controls.Add(new Label
-        {
-            Text      = "AI bots fill empty slots automatically when a player clicks \"I'm Ready!\"",
-            Font      = new Font("Segoe UI", 9, FontStyle.Italic),
-            ForeColor = Color.FromArgb(100, 200, 230),
-            AutoSize  = true,
-            Location  = new Point(20, y)
-        });
-        y += 35;
-
-        // ── IP binding drop-down ───────────────────────────────────────────────
-        AddLabel("Bind IP:", y);
-        _cboIp.Location      = new Point(150, y - 2);
-        _cboIp.Size          = new Size(200, 28);
-        _cboIp.DropDownStyle = ComboBoxStyle.DropDownList;
-        _cboIp.Font          = new Font("Segoe UI", 11);
-        _cboIp.BackColor     = Color.FromArgb(18, 28, 40);
-        _cboIp.ForeColor     = Color.Cyan;
-        // Populate with "Any (0.0.0.0)" and every local IPv4 address
+        // Populate IP dropdown with "Any" and every local IPv4 address.
+        // This requires a live DNS lookup so it cannot go in InitializeComponent().
         _cboIp.Items.Add("Any (0.0.0.0)");
         foreach (var ip in Dns.GetHostAddresses(Dns.GetHostName())
                                .Where(a => a.AddressFamily == AddressFamily.InterNetwork))
             _cboIp.Items.Add(ip.ToString());
-        _cboIp.SelectedIndex = 0;   // default to binding on all interfaces
-        Controls.Add(_cboIp);
-        y += 45;
+        _cboIp.SelectedIndex = 0;
 
-        // ── Port number ───────────────────────────────────────────────────────
-        AddLabel("Port:", y);
-        _nudPort.Location  = new Point(150, y - 2);
-        _nudPort.Size      = new Size(110, 28);
-        _nudPort.Minimum   = 1;
-        _nudPort.Maximum   = 65535;
-        _nudPort.Value     = 9000;          // default port matches the client
-        _nudPort.Font      = new Font("Segoe UI", 11);
-        _nudPort.BackColor = Color.FromArgb(18, 28, 40);
-        _nudPort.ForeColor = Color.Cyan;
-        Controls.Add(_nudPort);
-        y += 45;
-
-        // ── Max players info label ────────────────────────────────────────────
-        Controls.Add(new Label
-        {
-            Text      = "Max Players: 5  (human + bots combined)",
-            Font      = new Font("Segoe UI", 9),
-            ForeColor = Color.DarkGray,
-            AutoSize  = true,
-            Location  = new Point(150, y)
-        });
-        y += 30;
-
-        // ── Start / Stop button ───────────────────────────────────────────────
-        _btnStart.Text      = "▶  Start Server";
-        _btnStart.Location  = new Point(150, y);
-        _btnStart.Size      = new Size(170, 44);
-        _btnStart.Font      = new Font("Segoe UI", 13, FontStyle.Bold);
-        _btnStart.BackColor = Color.FromArgb(0, 70, 20);
-        _btnStart.ForeColor = Color.LimeGreen;
-        _btnStart.FlatStyle = FlatStyle.Flat;
-        _btnStart.FlatAppearance.BorderColor = Color.LimeGreen;
-        _btnStart.FlatAppearance.BorderSize  = 2;
-        _btnStart.Cursor    = Cursors.Hand;
-        _btnStart.Click    += OnStartStopClicked;
-        Controls.Add(_btnStart);
-        y += 62;
-
-        // ── Connected players list (left column) ──────────────────────────────
-        Controls.Add(new Label
-        {
-            Text      = "Connected Players:",
-            Location  = new Point(20, y),
-            Size      = new Size(200, 24),
-            Font      = new Font("Segoe UI", 10, FontStyle.Bold),
-            ForeColor = Color.Cyan
-        });
-        y += 26;
-
-        _lstPlayers.Location    = new Point(20, y);
-        _lstPlayers.Size        = new Size(195, 310);
-        _lstPlayers.Font        = new Font("Segoe UI", 10);
-        _lstPlayers.BackColor   = Color.FromArgb(10, 18, 28);
-        _lstPlayers.ForeColor   = Color.Cyan;
-        _lstPlayers.BorderStyle = BorderStyle.FixedSingle;
-        Controls.Add(_lstPlayers);
-
-        // ── Server log (right column) ─────────────────────────────────────────
-        Controls.Add(new Label
-        {
-            Text      = "Server Log:",
-            Location  = new Point(230, y - 26),
-            Size      = new Size(150, 24),
-            Font      = new Font("Segoe UI", 10, FontStyle.Bold),
-            ForeColor = Color.Cyan
-        });
-
-        _rtbLog.Location    = new Point(230, y);
-        _rtbLog.Size        = new Size(385, 310);
-        _rtbLog.Font        = new Font("Consolas", 9);
-        _rtbLog.BackColor   = Color.FromArgb(4, 8, 14);
-        _rtbLog.ForeColor   = Color.Cyan;
-        _rtbLog.ReadOnly    = true;
-        _rtbLog.ScrollBars  = RichTextBoxScrollBars.Vertical;
-        _rtbLog.BorderStyle = BorderStyle.FixedSingle;
-        Controls.Add(_rtbLog);
-
-        // ── Placeholder log entries so the UI looks active for a presentation ─
+        // Placeholder log entries so the UI looks active on first launch
         AppendLog("=== Neon Racing 2026 – Server Console ===");
         AppendLog("Press \"Start Server\" to begin accepting players.");
         AppendLog("Up to 5 players (humans + bots) per race.");
         AppendLog("AI bots auto-join when a player clicks \"I'm Ready!\"");
     }
 
-    // ── Helpers ────────────────────────────────────────────────────────────────
+    // ── Start / Stop ──────────────────────────────────────────────────────────
 
-    /// <summary>Adds a right-aligned label in the left input column.</summary>
-    private void AddLabel(string text, int y)
+    /// <summary>Draws a neon cyan border around the server window.</summary>
+    private void OnFormPaint(object? sender, PaintEventArgs e)
     {
-        Controls.Add(new Label
-        {
-            Text      = text,
-            Location  = new Point(20, y),
-            Size      = new Size(125, 28),
-            Font      = new Font("Segoe UI", 11),
-            ForeColor = Color.LightGray,
-            TextAlign = ContentAlignment.MiddleRight
-        });
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        using (var glow = new Pen(Color.FromArgb(30, Color.Cyan), 10f))
+            g.DrawRectangle(glow, 5, 5, Width - 10, Height - 10);
+        using (var line = new Pen(Color.FromArgb(120, Color.Cyan), 1.5f))
+            g.DrawRectangle(line, 2, 2, Width - 5, Height - 5);
     }
 
     // ── Start / Stop ──────────────────────────────────────────────────────────
