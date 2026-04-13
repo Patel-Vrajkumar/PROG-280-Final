@@ -41,8 +41,9 @@ public sealed partial class HowToPlayForm : Form
         RACING
         ──────
         • After "Go!" your MOVE button becomes active.
-        • Click MOVE as fast as you can to push your car forward.
-        • Each click advances your car by 5 units (finish line = 100).
+        • Click MOVE to push your car forward.
+        • You must click MOVE 5 times to advance your car by 5 units.
+        • The button shows how many clicks remain until the next move.
         • Car positions update live for all players.
 
 
